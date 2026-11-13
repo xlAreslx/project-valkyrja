@@ -29,7 +29,7 @@ Project VALKYRJA translates human survival physiology (**hemostasis, lymphatic d
 | Protocol Codename | Official Engineering Acronym | Physiological & Technical Function |
 | :--- | :--- | :--- |
 | **`Protocol S.O.F.I.A.`** | **S**afeguarded **O**ffline **F**ailover for **I**nfant & **A**cute-care | **NICU (UCIN), Nursery & Maternal Protection:** Generates offline-verifiable `HMAC-SHA256` tokens pairing Mother-Newborn wristbands during network blackouts, locks neonatal gram-weight micro-dosing, and guards obstetric *Code Mater* ($\text{MgSO}_4$ toxicity/Rh). |
-| **`Protocol G.A.L.A.`** | **G**uarded **A**utonomous **L**ocal-bunker **A**rchitecture | **12-Pillar Point-of-Care Survival, Cryo & OT Power Watchdog:** Maintains sub-5ms local SQLite continuity across ER, ICU, Hemodialysis, Transplant OR, a 5-tier Thermo-Cryogenic matrix ($+22^\circ\text{C}$ down to $-196^\circ\text{C}$), and isolated UPS/Diesel Generator telemetry. |
+| **`Protocol G.A.L.A.`** | **G**uarded **A**utonomous **L**ocal-bunker **A**rchitecture | **12-Pillar Point-of-Care Survival, Cryo & OT Power Watchdog:** Maintains sub-5ms local SQLite continuity across ER, ICU, Hemodialysis, Transplant OR, a 5-tier Thermo-Cryogenic matrix ($+22^\circ\text{C}$ down to $-196^\circ\text{C}$), and isolated UPS/Diesel Generator load shedding. |
 | **`Protocol U.N.I.C.O.R.S.E.`** | **U**nending **N**ested **I**llusion & **C**ryptographic **O**bfuscation **R**eflective **S**andbox **E**ngine | **Infinite Mirror Labyrinth & Barium Watermarking:** Traps intruders exploring the system inside a deterministic, procedural RAM filesystem of infinite depth seeded with time-rotating steganographic watermarks (`TRC-XXXX`). |
 | **`Protocol S.I.E.R.R.A.`** | **S**ub-millisecond **I**n-memory **E**phemeral **R**AM **R**evocation & **A**udit | **32-Byte RAM Crypto-Shredding & Clinical Locks:** Overwrites the 256-bit master key in volatile RAM with `0x00` in **<1 ms** upon Tier-4 breaches, executes offline clinical safety locks (ESC 0h/1h, Swedish Cystatin C eGFR, DKA Insulin-$K^+$ lock), and compiles the NIS2 dossier. |
 
@@ -47,11 +47,11 @@ To prevent volumetric or application-layer **DDoS micro-bursts** from exhausting
 
 ## ⚡ Bioenergetic OT Resilience: Electrical Grid, UPS & Backup Generators
 
-Modern hybrid cyberattacks target hospital **Building Management Systems (BMS) and Operational Technology (OT)** to disrupt electrical power or blind facility engineers during blackouts. Modeling **cellular ATP bioenergetics and hemodynamic centralization**, Project VALKYRJA monitors and protects critical hospital power infrastructure offline:
+Modern hybrid cyberattacks target hospital **Building Management Systems (BMS) and Operational Technology (OT)** to disrupt electrical power or blind facility engineers during blackouts. Modeling **cellular ATP bioenergetics and hemodynamic centralization**, `adapters/4_local_clinical_bunker.py` monitors and protects critical hospital power infrastructure offline:
 
-* **0 ms Phosphocreatine Buffer (*Online Double-Conversion UPS & OR Isolated Power Systems*):** Monitors real-time battery autonomy (`%` and remaining minutes) and Surgical Isolated Power Panels (IPS) feeding ICU mechanical ventilators, ECMO, infusion pumps, and NICU incubators during the transition gap before generators reach nominal voltage.
-* **<10 s Anaerobic Glycolysis Failover (*Automatic Transfer Switch [ATS] & Diesel Generators*):** Tracks ATS closure latency, 400V/50.0 Hz phase stability, engine oil/coolant telemetry, and physical **Diesel Fuel Tank Reserves** converted into exact hours of autonomous hospital survival (72h+ Nordic civil preparedness standard).
-* **Hemodynamic Centralization (*Automated Non-Clinical Load Shedding*):** If external grid power fails or fuel reserves drop below critical thresholds, the decision engine triggers automated load shedding—disconnecting administrative offices and non-essential HVAC to concentrate **100% of electrical capacity on Emergency Red Outlets** (ER Resuscitation, ICU, NICU, Operating Rooms, Hemodialysis, $-80^\circ\text{C}$ Ultra-Freezers, and Local Bunker Servers).
+* **0 ms Phosphocreatine Buffer (*Online Double-Conversion UPS & OR Isolated Power Systems*):** Monitors real-time battery autonomy (`%` and remaining hours) and Surgical Isolated Power Panels (IPS) feeding ICU mechanical ventilators, ECMO, infusion pumps, and NICU incubators during the transition gap before generators reach nominal voltage.
+* **<10 s Anaerobic Glycolysis Failover (*Automatic Transfer Switch [ATS] & Diesel Generators*):** Tracks ATS closure latency, 400V/50.0 Hz phase stability, and physical **Diesel Fuel Tank Reserves** converted into exact hours of autonomous hospital survival (72h+ Nordic civil preparedness standard).
+* **Hemodynamic Centralization (*Automated Non-Clinical Load Shedding*):** Executed via `evaluate_bioenergetic_power_and_shed_loads()`. If external grid power fails, the engine automatically sheds administrative offices, cafeterias, and non-essential HVAC to concentrate **100% of electrical capacity on Emergency Red Outlets** (ER Resuscitation, ICU, NICU, Operating Rooms, Hemodialysis, $-80^\circ\text{C}/-196^\circ\text{C}$ Cryogenics, and Local Bunker Servers).
 
 ---
 
@@ -88,5 +88,30 @@ project-valkyrja/
 ├── adapters/                              # DOMAIN-SPECIFIC ADAPTERS (20%)
 │   └── 4_local_clinical_bunker.py         # Protocols GALA & SOFIA Offline SQLite Bunker & Power Guard
 ├── tests/                                 # AUTOMATED VERIFICATION SUITE
-│   └── test_core_defenses.py              # Unit tests for all 4 Named Protocols, DDoS & Cryptography
+│   └── test_core_defenses.py              # Unit tests for all 4 Named Protocols, DDoS & OT Power
 └── 5_valkyrja_dashboard_demo.py           # Unified Command Center & End-to-End Breach Simulator
+```
+
+---
+
+## 🚀 Quick Start (Local Verification)
+
+```bash
+# 1. Clone the repository
+git clone [https://github.com/xlAreslx/project-valkyrja.git](https://github.com/xlAreslx/project-valkyrja.git)
+cd project-valkyrja
+
+# 2. Run the automated cryptographic, DDoS & clinical test suite (5/5 tests)
+python -m unittest discover -s tests -p "test_*.py" -v
+
+# 3. Execute the full 4-stage Command Center & Swedish NIS2 Dossier simulation
+python 5_valkyrja_dashboard_demo.py
+```
+
+---
+
+## 👨‍⚕️👨‍💻 About the Author
+
+**Dr. Luis Antonio Aburto De la Rosa (MD)**  
+*Licensed Physician (Emergency Medicine) & Software Development Engineering Candidate*  
+Designing resilient clinical continuity architectures, applied cryptographic defenses, and point-of-care safety systems aligned with European and Swedish healthcare standards (**EU NIS2 / SFS 2025:1506, HL7 FHIR, IVO Lex Maria**).
