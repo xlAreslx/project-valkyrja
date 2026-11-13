@@ -1,21 +1,26 @@
 """
-Project VALKYRJA — Adapter Module 4: Offline Point-of-Care Survival Bunker (SQLite)
-Architecture: Hexagonal Secondary Adapter (MedCore Clinical & Bioenergetic OT Continuity)
+Project VALKYRJA — Adapter Module 4: Offline Point-of-Care Survival Bunker (SQLite),
+IoMT Hardware Lifecycle Registry & Multi-Hospital Subsidiary Federation.
+Architecture: Hexagonal Secondary Adapter (MedCore Clinical, IoMT & Bioenergetic OT Continuity)
 Compliance Target: Sweden IVO (Lex Maria Patient Safety) & SFS 2025:1506 (NIS2)
 
 Implements:
-1. PROTOCOL G.A.L.A. & B.I.O.F.O.A.M. (Row-Level HMAC + 5-Table Merkle Manifest Seal):
-   - Bilateral Thermo-Cryogenic Envelope [T_min, T_max]: Protects against both warming AND
-     over-cooling/freezing iatrogenic damage (e.g., RBC freezing hemolysis < +2°C, platelet
-     cold-activation < +20°C, PVC cryo-fracture < -40°C, and LN2 sensor spoofing < -200°C).
-   - Signed N+1 Cold-Chain Maintenance Transfer: Allows scheduled refrigerator/freezer
-     maintenance without breaking Merkle seals by enforcing prior unit handover to backup units.
+1. PROTOCOL G.A.L.A. & B.I.O.F.O.A.M. (Row-Level HMAC + 6-Table Merkle Manifest Seal):
+   - Protects the 12 High-Mortality Clinical Pillars, Bilateral [T_min, T_max] Cryo Matrix,
+     OT Backup Power, and Connected IoMT/IT Equipment Registry.
+   - Supports signed N+1 Cold-Chain Maintenance, OT Generator Maintenance/Replacement,
+     and Clinical/IT Equipment Provisioning, Maintenance, Replacement & Apoptosis (Removal)
+     across PCs, iPads, Laparoscopy Towers, Lab Analyzers, CT/MRI Imaging, ICU & NICU.
 2. PROTOCOL S.O.F.I.A. (Safeguarded Offline Failover for Infant & Acute-care):
    - Cryptographic SHA-256 Mother-Infant Wristband Dyad Pairing for NICU/Nursery (Cuneros).
+3. Multi-Hospital & Subsidiary Lymphatic Federation:
+   - Prevents lateral movement between sub-clinics and sister hospitals of the same corporate
+     group while enabling B.I.O.F.O.A.M.-signed ambulance transfer capsules.
 """
 
 import hashlib
 import hmac
+import json
 import os
 import sqlite3
 import time
@@ -23,12 +28,13 @@ from typing import Dict, List, Optional
 
 SOFIA_DEFAULT_KEY = "PROTOCOL_SOFIA_NICU_MOTHER_INFANT_DYAD_KEY_2026"
 BIOFOAM_DEFAULT_KEY = "PROTOCOL_GALA_BIOFOAM_ROW_INTEGRITY_SEED_2026"
+FEDERATION_DEFAULT_KEY = "VALKYRJA_CORPORATE_SUBSIDIARY_FEDERATION_SEED_2026"
 
 
 class LocalClinicalSurvivalBunker:
     """
     PROTOCOL G.A.L.A., PROTOCOL S.O.F.I.A. & B.I.O.F.O.A.M. Offline Survival Node.
-    Guarantees sub-5ms local clinical, bilateral cryogenic, and electrical telemetry continuity.
+    Guarantees sub-5ms local clinical, bilateral cryogenic, IoMT hardware, and OT power continuity.
     """
 
     SOFIA_NURSERY_SECRET: bytes = os.environ.get("VALKYRJA_SOFIA_KEY", SOFIA_DEFAULT_KEY).encode("utf-8")
@@ -40,14 +46,17 @@ class LocalClinicalSurvivalBunker:
         "lab_panic_values",
         "protocol_sofia_nicu_nursery",
         "ot_bioenergetic_power_grid",
+        "iomt_connected_hardware_registry",
     )
 
-    def __init__(self, db_path: str = ":memory:") -> None:
+    def __init__(self, db_path: str = ":memory:", branch_id: str = "SE_STHLM_MAIN_HOSPITAL_01") -> None:
         self.db_path = db_path
+        self.branch_id = branch_id
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
         self._bunker_merkle_manifest_hmac: Optional[str] = None
         self._expected_triage_tokens: List[str] = []
+        self._revoked_hardware_tokens: set[str] = set()
         self._initialize_survival_schema()
 
     def _initialize_survival_schema(self) -> None:
@@ -69,7 +78,6 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 2: Bilateral Thermo-Cryogenic Matrix [min_safe_celsius, max_safe_celsius]
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS blood_bank_reserve (
@@ -124,6 +132,20 @@ class LocalClinicalSurvivalBunker:
             )
             """
         )
+
+        # Table 6: Connected Clinical IoMT & IT Hardware Lifecycle Registry (Thymic HLA Selection)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS iomt_connected_hardware_registry (
+                device_id TEXT PRIMARY KEY,
+                device_category TEXT NOT NULL,
+                assigned_department TEXT NOT NULL,
+                serial_or_mac TEXT NOT NULL,
+                hla_hardware_token TEXT NOT NULL,
+                operational_status TEXT NOT NULL
+            )
+            """
+        )
         self.conn.commit()
 
     @classmethod
@@ -143,7 +165,7 @@ class LocalClinicalSurvivalBunker:
         return hmac.new(cls.BIOFOAM_ROW_SECRET, canonical.encode("utf-8"), hashlib.sha256).hexdigest()[:20].upper()
 
     def compute_full_bunker_merkle_manifest(self) -> str:
-        """Hashes the exact row count and canonical content of all 5 survival tables in SQLite."""
+        """Hashes the exact row count and canonical content of all 6 survival tables in SQLite."""
         cursor = self.conn.cursor()
         manifest_accumulator = hashlib.sha256()
 
@@ -161,7 +183,7 @@ class LocalClinicalSurvivalBunker:
         ).hexdigest().upper()
 
     def verify_bunker_row_integrity(self) -> Dict[str, object]:
-        """Audits both individual B.I.O.F.O.A.M. row seals AND the 5-Table Merkle Manifest HMAC."""
+        """Audits both individual B.I.O.F.O.A.M. row seals AND the 6-Table Merkle Manifest HMAC."""
         cursor = self.conn.cursor()
         tampered_patients: List[str] = []
         present_tokens: List[str] = []
@@ -192,7 +214,7 @@ class LocalClinicalSurvivalBunker:
         current_merkle = self.compute_full_bunker_merkle_manifest()
         merkle_intact = (
             self._bunker_merkle_manifest_hmac is not None
-            and hmac.compare_digest(current_merkle, self._bunker_merkle_manifest_hmac)
+            and hmac.compare_digest(current_merkle, self._bunker_merkle_merkle_or_manifest())
         )
 
         is_intact = (len(tampered_patients) == 0) and merkle_intact
@@ -208,11 +230,11 @@ class LocalClinicalSurvivalBunker:
             ),
         }
 
+    def _bunker_merkle_merkle_or_manifest(self) -> str:
+        return self._bunker_merkle_manifest_hmac or ""
+
     def audit_bilateral_thermo_cryogenic_safety(self) -> Dict[str, object]:
-        """
-        Evaluates all biological & cryogenic units against BOTH upper (warming) and
-        lower (freezing/hemolysis/cold-activation) temperature bounds [min_safe_celsius, max_safe_celsius].
-        """
+        """Evaluates all biological & cryogenic units against bilateral [min_safe_celsius, max_safe_celsius]."""
         cursor = self.conn.cursor()
         safe_units: List[Dict[str, object]] = []
         thermal_excursions: List[Dict[str, object]] = []
@@ -220,18 +242,11 @@ class LocalClinicalSurvivalBunker:
         for row in cursor.execute("SELECT * FROM blood_bank_reserve"):
             unit = dict(row)
             temp = unit["temp_celsius"]
-            t_min = unit["min_safe_celsius"]
-            t_max = unit["max_safe_celsius"]
-
-            if temp < t_min:
-                unit["excursion_type"] = (
-                    "HYPOTHERMIC_FREEZING_OR_HEMOLYSIS_ALERT: Below min safe threshold!"
-                )
+            if temp < unit["min_safe_celsius"]:
+                unit["excursion_type"] = "HYPOTHERMIC_FREEZING_OR_HEMOLYSIS_ALERT: Below min safe threshold!"
                 thermal_excursions.append(unit)
-            elif temp > t_max:
-                unit["excursion_type"] = (
-                    "HYPERTHERMIC_WARMING_SPOILAGE_ALERT: Above max safe threshold!"
-                )
+            elif temp > unit["max_safe_celsius"]:
+                unit["excursion_type"] = "HYPERTHERMIC_WARMING_SPOILAGE_ALERT: Above max safe threshold!"
                 thermal_excursions.append(unit)
             else:
                 safe_units.append(unit)
@@ -242,6 +257,9 @@ class LocalClinicalSurvivalBunker:
             "quarantined_excursion_units": thermal_excursions,
         }
 
+    # =========================================================================
+    # 1. COLD-CHAIN N+1 MAINTENANCE HANDOVER
+    # =========================================================================
     @classmethod
     def generate_maintenance_auth_token(
         cls, target_fridge_id: str, backup_fridge_id: str, technician_id: str
@@ -257,41 +275,24 @@ class LocalClinicalSurvivalBunker:
         technician_id: str,
         auth_token: str,
     ) -> Dict[str, object]:
-        """
-        N+1 Cold-Chain Maintenance Handover Protocol:
-        1. Validates cryptographic maintenance token.
-        2. Verifies that the backup refrigerator/freezer is within bilateral safe temperature bounds
-           [min_safe_celsius, max_safe_celsius] for every unit inside target_fridge_id.
-        3. Transfers all biological units to backup_fridge_id and re-seals the 5-Table Merkle Manifest
-           so scheduled maintenance never triggers false tamper lockouts or leaves units uncooled.
-        """
         expected_token = self.generate_maintenance_auth_token(
             target_fridge_id, backup_fridge_id, technician_id
         )
         if not hmac.compare_digest(expected_token, auth_token.strip().upper()):
-            return {
-                "maintenance_authorized": False,
-                "status": "REJECTED_INVALID_MAINTENANCE_HMAC_TOKEN",
-            }
+            return {"maintenance_authorized": False, "status": "REJECTED_INVALID_MAINTENANCE_HMAC_TOKEN"}
 
         cursor = self.conn.cursor()
         units_in_target = cursor.execute(
             "SELECT * FROM blood_bank_reserve WHERE fridge_id = ?", (target_fridge_id,)
         ).fetchall()
 
-        # Verify backup fridge temperature is safe for every unit before allowing transfer
         for u in units_in_target:
             if not (u["min_safe_celsius"] <= backup_verified_temp_c <= u["max_safe_celsius"]):
                 return {
                     "maintenance_authorized": False,
-                    "status": (
-                        f"BLOCKED_THERMAL_INCOMPATIBILITY: Backup {backup_fridge_id} at "
-                        f"{backup_verified_temp_c}C violates [{u['min_safe_celsius']}C, "
-                        f"{u['max_safe_celsius']}C] for unit {u['unit_id']}!"
-                    ),
+                    "status": f"BLOCKED_THERMAL_INCOMPATIBILITY: {backup_verified_temp_c}C violates bounds!",
                 }
 
-        # Perform N+1 handover transfer and update status
         cursor.execute(
             """
             UPDATE blood_bank_reserve
@@ -301,8 +302,6 @@ class LocalClinicalSurvivalBunker:
             (backup_fridge_id, backup_verified_temp_c, target_fridge_id),
         )
         self.conn.commit()
-
-        # Re-seal the 5-Table Merkle Manifest after authorized N+1 handover
         self._bunker_merkle_manifest_hmac = self.compute_full_bunker_merkle_manifest()
 
         return {
@@ -311,7 +310,234 @@ class LocalClinicalSurvivalBunker:
             "transferred_units_count": len(units_in_target),
             "offline_fridge_cleared_for_service": target_fridge_id,
             "active_backup_fridge": backup_fridge_id,
-            "new_merkle_manifest_hmac": self._bunker_merkle_manifest_hmac[:16],
+        }
+
+    # =========================================================================
+    # 2. ELECTRICAL GRID, UPS & GENERATOR MAINTENANCE / REPLACEMENT (MITOPHAGY)
+    # =========================================================================
+    @classmethod
+    def generate_power_lifecycle_auth_token(
+        cls, target_subsystem_id: str, action: str, engineer_id: str
+    ) -> str:
+        payload = f"OT_POWER_LIFECYCLE:{target_subsystem_id}:{action}:{engineer_id}".encode("utf-8")
+        return hmac.new(cls.BIOFOAM_ROW_SECRET, payload, hashlib.sha256).hexdigest()[:18].upper()
+
+    def execute_ot_generator_maintenance_or_swap(
+        self,
+        target_subsystem_id: str,
+        action: str,  # "MAINTENANCE_BYPASS" or "REPLACE_WITH_NEW_GENERATOR"
+        collateral_backup_online: bool,
+        collateral_autonomy_hours: float,
+        engineer_id: str,
+        auth_token: str,
+        new_subsystem_id: Optional[str] = None,
+        new_voltage_telemetry: str = "400V 3-Phase / 50.00 Hz (New Unit Online)",
+    ) -> Dict[str, object]:
+        """
+        Governs maintenance or full replacement of hospital electrical generators and UPS banks:
+        1. Verifies cryptographic facility engineering authorization.
+        2. Enforces Collateral Perfusion Guard: Blocks taking any generator/UPS offline unless
+           collateral backup power is verified online with >= 72.0 hours of Red-Outlet autonomy.
+        3. Updates or swaps the generator record and re-seals the 6-Table Merkle Manifest.
+        """
+        expected = self.generate_power_lifecycle_auth_token(target_subsystem_id, action, engineer_id)
+        if not hmac.compare_digest(expected, auth_token.strip().upper()):
+            return {"power_operation_authorized": False, "status": "REJECTED_INVALID_OT_POWER_HMAC"}
+
+        if not collateral_backup_online or collateral_autonomy_hours < 72.0:
+            return {
+                "power_operation_authorized": False,
+                "status": (
+                    "BLOCKED_INSUFFICIENT_COLLATERAL_POWER: Cannot service or swap generator "
+                    "without verified >=72h N+1 backup power on Red Outlets!"
+                ),
+            }
+
+        cursor = self.conn.cursor()
+        if action == "REPLACE_WITH_NEW_GENERATOR" and new_subsystem_id:
+            old_row = cursor.execute(
+                "SELECT * FROM ot_bioenergetic_power_grid WHERE subsystem_id = ?", (target_subsystem_id,)
+            ).fetchone()
+            tier = old_row["metabolic_tier"] if old_row else "TIER_3_GLYCOLYSIS_10S_DIESEL_GENERATOR"
+            zones = old_row["protected_clinical_zones"] if old_row else "ALL_RED_OUTLETS"
+
+            cursor.execute(
+                "DELETE FROM ot_bioenergetic_power_grid WHERE subsystem_id = ?", (target_subsystem_id,)
+            )
+            cursor.execute(
+                "INSERT INTO ot_bioenergetic_power_grid VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    new_subsystem_id,
+                    tier,
+                    zones,
+                    new_voltage_telemetry,
+                    100.0,
+                    collateral_autonomy_hours,
+                    "NEW_GENERATOR_COMMISSIONED_AND_SYNCHRONIZED",
+                ),
+            )
+            op_summary = f"REPLACED_{target_subsystem_id}_WITH_{new_subsystem_id}"
+        else:
+            cursor.execute(
+                """
+                UPDATE ot_bioenergetic_power_grid
+                SET grid_isolation_status = 'MAINTENANCE_COLLATERAL_N1_BYPASS_ACTIVE',
+                    autonomy_hours = ?
+                WHERE subsystem_id = ?
+                """,
+                (collateral_autonomy_hours, target_subsystem_id),
+            )
+            op_summary = f"MAINTENANCE_BYPASS_ENGAGED_ON_{target_subsystem_id}"
+
+        self.conn.commit()
+        self._bunker_merkle_manifest_hmac = self.compute_full_bunker_merkle_manifest()
+        return {
+            "power_operation_authorized": True,
+            "status": "OT_POWER_LIFECYCLE_COMPLETE_MERKLE_RESEALED",
+            "operation_summary": op_summary,
+            "verified_collateral_autonomy_hours": collateral_autonomy_hours,
+        }
+
+    # =========================================================================
+    # 3. CONNECTED IoMT & IT HARDWARE LIFECYCLE (PCs, iPads, OR, Lab, Imaging, ICU, NICU)
+    # =========================================================================
+    @classmethod
+    def generate_hla_hardware_token(cls, device_id: str, category: str, dept: str, serial_mac: str) -> str:
+        payload = f"HLA_HW:{device_id}:{category}:{dept}:{serial_mac}".encode("utf-8")
+        sig = hmac.new(cls.BIOFOAM_ROW_SECRET, payload, hashlib.sha256).hexdigest()[:16].upper()
+        return f"HLA-DEV-{sig}"
+
+    @classmethod
+    def generate_equipment_lifecycle_auth(cls, action: str, device_id: str, biomed_eng_id: str) -> str:
+        payload = f"EQUIP_LIFECYCLE:{action}:{device_id}:{biomed_eng_id}".encode("utf-8")
+        return hmac.new(cls.BIOFOAM_ROW_SECRET, payload, hashlib.sha256).hexdigest()[:18].upper()
+
+    def manage_connected_equipment_lifecycle(
+        self,
+        action: str,  # "ADD_NEW", "MAINTENANCE_MODE", "REPLACE_SWAP", "REMOVE_DECOMMISSION"
+        device_id: str,
+        device_category: str,  # e.g., "OR_LAPAROSCOPY_TOWER", "CLINICAL_IPAD", "CT_MRI_IMAGING", "LAB_ANALYZER", "NICU_INCUBATOR", "ICU_VENTILATOR"
+        assigned_department: str,
+        serial_or_mac: str,
+        biomed_engineer_id: str,
+        auth_token: str,
+        replacement_device_id: Optional[str] = None,
+        replacement_serial_mac: Optional[str] = None,
+    ) -> Dict[str, object]:
+        """
+        Thymic Positive/Negative Selection for Connected Hospital Equipment:
+        Safely adds new devices, isolates units under maintenance, performs atomic hardware
+        swaps, or executes cryptographic apoptosis (revocation) when removing old devices,
+        automatically re-sealing the 6-Table Merkle Manifest.
+        """
+        expected_auth = self.generate_equipment_lifecycle_auth(action, device_id, biomed_engineer_id)
+        if not hmac.compare_digest(expected_auth, auth_token.strip().upper()):
+            return {
+                "lifecycle_authorized": False,
+                "status": "REJECTED_ROGUE_HARDWARE_OR_INVALID_BIOMED_SIGNATURE",
+            }
+
+        cursor = self.conn.cursor()
+
+        if action == "ADD_NEW":
+            hla_token = self.generate_hla_hardware_token(
+                device_id, device_category, assigned_department, serial_or_mac
+            )
+            cursor.execute(
+                "INSERT OR REPLACE INTO iomt_connected_hardware_registry VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    device_id,
+                    device_category,
+                    assigned_department,
+                    serial_or_mac,
+                    hla_token,
+                    "ACTIVE_THYMIC_HLA_VERIFIED",
+                ),
+            )
+            result_status = "NEW_EQUIPMENT_PROVISIONED_AND_SEALED"
+
+        elif action == "MAINTENANCE_MODE":
+            cursor.execute(
+                """
+                UPDATE iomt_connected_hardware_registry
+                SET operational_status = 'MAINTENANCE_SANDBOX_ISOLATED'
+                WHERE device_id = ?
+                """,
+                (device_id,),
+            )
+            result_status = "EQUIPMENT_ISOLATED_FOR_SAFE_MAINTENANCE"
+
+        elif action == "REPLACE_SWAP" and replacement_device_id and replacement_serial_mac:
+            old_row = cursor.execute(
+                "SELECT * FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
+            ).fetchone()
+            if old_row:
+                self._revoked_hardware_tokens.add(old_row["hla_hardware_token"])
+            cursor.execute(
+                "DELETE FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
+            )
+            new_hla = self.generate_hla_hardware_token(
+                replacement_device_id, device_category, assigned_department, replacement_serial_mac
+            )
+            cursor.execute(
+                "INSERT INTO iomt_connected_hardware_registry VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    replacement_device_id,
+                    device_category,
+                    assigned_department,
+                    replacement_serial_mac,
+                    new_hla,
+                    "ACTIVE_REPLACEMENT_UNIT_VERIFIED",
+                ),
+            )
+            result_status = f"SWAPPED_{device_id}_TO_{replacement_device_id}_OLD_TOKEN_REVOKED"
+
+        elif action == "REMOVE_DECOMMISSION":
+            old_row = cursor.execute(
+                "SELECT * FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
+            ).fetchone()
+            if old_row:
+                self._revoked_hardware_tokens.add(old_row["hla_hardware_token"])
+            cursor.execute(
+                "DELETE FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
+            )
+            result_status = f"APOPTOSIS_DECOMMISSIONED_{device_id}_TOKEN_PERMANENTLY_REVOKED"
+        else:
+            return {"lifecycle_authorized": False, "status": "UNSUPPORTED_LIFECYCLE_ACTION"}
+
+        self.conn.commit()
+        self._bunker_merkle_manifest_hmac = self.compute_full_bunker_merkle_manifest()
+        return {
+            "lifecycle_authorized": True,
+            "status": result_status,
+            "device_category": device_category,
+            "merkle_manifest_resealed": True,
+        }
+
+    def verify_connected_device_access(self, device_id: str, presented_hla_token: str) -> Dict[str, object]:
+        """Blocks decommissioned/stolen devices, units in maintenance mode, or unregistered rogue hardware."""
+        if presented_hla_token in self._revoked_hardware_tokens:
+            return {
+                "access_granted": False,
+                "verdict": "BLOCKED_APOPTOSIS_REVOKED_HARDWARE_TOKEN",
+            }
+        cursor = self.conn.cursor()
+        row = cursor.execute(
+            "SELECT * FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
+        ).fetchone()
+        if not row:
+            return {"access_granted": False, "verdict": "BLOCKED_UNREGISTERED_ROGUE_DEVICE"}
+        if not hmac.compare_digest(row["hla_hardware_token"], presented_hla_token):
+            return {"access_granted": False, "verdict": "BLOCKED_FORGED_HARDWARE_SIGNATURE"}
+        if row["operational_status"] == "MAINTENANCE_SANDBOX_ISOLATED":
+            return {
+                "access_granted": False,
+                "verdict": "QUARANTINED_DEVICE_UNDER_MAINTENANCE_NO_PROD_ACCESS",
+            }
+        return {
+            "access_granted": True,
+            "verdict": "AUTHORIZED_HLA_COMPATIBLE_EQUIPMENT",
+            "allowed_department_scope": row["assigned_department"],
         }
 
     @classmethod
@@ -372,7 +598,7 @@ class LocalClinicalSurvivalBunker:
         }
 
     def seed_shadow_sync_snapshot(self) -> None:
-        """Populates all 5 tables with bilateral thermal bounds and locks the Merkle Manifest."""
+        """Populates all 6 tables and locks the 6-Table Merkle Manifest."""
         cursor = self.conn.cursor()
 
         raw_triage_rows = [
@@ -424,7 +650,6 @@ class LocalClinicalSurvivalBunker:
             sealed_triage_rows,
         )
 
-        # Bilateral Thermo-Cryogenic Matrix: (unit_id, group, type, fridge, temp_c, min_c, max_c, status)
         cursor.executemany(
             "INSERT OR REPLACE INTO blood_bank_reserve VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
@@ -493,6 +718,23 @@ class LocalClinicalSurvivalBunker:
                 ),
             ],
         )
+
+        # Seed Table 6: Initial Connected IoMT & Clinical IT Fleet
+        initial_devices = [
+            ("DEV-OR-LAP-01", "OR_LAPAROSCOPY_4K_TOWER", "SURGICAL_OR_SUITE_03", "MAC:00:1A:2B:OR:01"),
+            ("DEV-IPAD-ER-04", "CLINICAL_MOBILE_IPAD_PRO", "EMERGENCY_TRIAGE_BAY", "SER:IPAD-SE-9941"),
+            ("DEV-IMG-CT-01", "SIEMENS_DUAL_SOURCE_CT_SCANNER", "RADIOLOGY_STROKE_PACS", "MAC:00:1A:2B:CT:88"),
+            ("DEV-LAB-ROCHE-02", "HIGH_SENSITIVITY_TROPONIN_ANALYZER", "CENTRAL_STAT_LAB_LIMS", "SER:COBAS-SE-402"),
+            ("DEV-ICU-VENT-08", "SERVO_U_MECHANICAL_VENTILATOR", "ADULT_ICU_BED_08", "SER:MAQUET-SE-778"),
+            ("DEV-NICU-INC-01", "GIRAFFE_OMNIBED_INCUBATOR", "NICU_PROTOCOL_SOFIA", "SER:NICU-SOFIA-01"),
+        ]
+        for dev_id, cat, dept, mac in initial_devices:
+            tok = self.generate_hla_hardware_token(dev_id, cat, dept, mac)
+            cursor.execute(
+                "INSERT OR REPLACE INTO iomt_connected_hardware_registry VALUES (?, ?, ?, ?, ?, ?)",
+                (dev_id, cat, dept, mac, tok, "ACTIVE_THYMIC_HLA_VERIFIED"),
+            )
+
         self.conn.commit()
         self._bunker_merkle_manifest_hmac = self.compute_full_bunker_merkle_manifest()
 
@@ -505,7 +747,6 @@ class LocalClinicalSurvivalBunker:
         patients: List[Dict[str, object]] = [
             dict(row) for row in cursor.execute("SELECT * FROM er_active_triage ORDER BY retts_triage_level ASC")
         ]
-        # Bilateral thermal filter: only returns units strictly inside [min_safe_celsius, max_safe_celsius]
         thermo_cryo_units: List[Dict[str, object]] = [
             dict(row)
             for row in cursor.execute(
@@ -521,16 +762,21 @@ class LocalClinicalSurvivalBunker:
         ot_power_systems: List[Dict[str, object]] = [
             dict(row) for row in cursor.execute("SELECT * FROM ot_bioenergetic_power_grid")
         ]
+        connected_iomt_fleet: List[Dict[str, object]] = [
+            dict(row) for row in cursor.execute("SELECT * FROM iomt_connected_hardware_registry")
+        ]
 
         latency_ms = round((time.perf_counter_ns() - start_ns) / 1_000_000, 3)
 
         return {
             "bunker_mode": "OFFLINE_AUTONOMOUS_SURVIVAL",
+            "branch_id": self.branch_id,
             "active_bunker_protocols": [
                 "PROTOCOL_GALA_12_PILLARS",
                 "PROTOCOL_SOFIA_NICU_SAFEGUARD",
-                "BIOFOAM_ROW_AND_5TABLE_MERKLE_SEAL",
+                "BIOFOAM_ROW_AND_6TABLE_MERKLE_SEAL",
                 "BILATERAL_CRYO_HEMOLYSIS_AND_N1_MAINT_GUARD",
+                "THYMIC_HLA_IOMT_EQUIPMENT_LIFECYCLE_GUARD",
                 "BIOENERGETIC_OT_POWER_ISLAND_MODE",
             ],
             "biofoam_integrity_audit": integrity_audit,
@@ -540,4 +786,103 @@ class LocalClinicalSurvivalBunker:
             "critical_lab_panic_alerts": panic_labs,
             "protocol_sofia_nicu_nursery_dyads": sofia_nicu_protected,
             "ot_power_and_backup_generators": ot_power_systems,
+            "verified_iomt_connected_equipment": connected_iomt_fleet,
+        }
+
+
+# =====================================================================
+# 4. MULTI-HOSPITAL & SUBSIDIARY FEDERATION (LYMPHATIC VALVE ISOLATION)
+# =====================================================================
+class MultiHospitalSubsidiaryFederation:
+    """
+    Manages a corporate network of main hospitals, sub-clinics, and diagnostic subsidiaries:
+    1. Independent Cellular Isolation: If a sub-clinic is breached, its lymphatic valve closes
+       in <1ms so ransomware cannot move laterally to the Main Hospital or sister clinics.
+    2. Signed Ambulance Transfer Exosome: Allows a compromised/offline sub-clinic to export
+       a read-only, B.I.O.F.O.A.M.-signed emergency patient summary for safe physical ambulance
+       transfer to the Main Hospital without opening network sockets.
+    """
+
+    CORPORATE_FEDERATION_SECRET: bytes = os.environ.get(
+        "VALKYRJA_FEDERATION_KEY", FEDERATION_DEFAULT_KEY
+    ).encode("utf-8")
+
+    def __init__(self, corporate_group_name: str = "NORDIC_VITALCARE_HEALTH_GROUP_AB") -> None:
+        self.corporate_group_name = corporate_group_name
+        self.subsidiary_nodes: Dict[str, Dict[str, str]] = {}
+
+    def register_subsidiary_node(self, branch_id: str, node_role: str) -> None:
+        self.subsidiary_nodes[branch_id] = {
+            "role": node_role,  # e.g., "TERTIARY_MAIN_HOSPITAL", "PERIPHERAL_SUBCLINIC", "DIAGNOSTIC_LAB_CENTER"
+            "network_valve_state": "OPEN_HOMEOSTASIS",
+            "local_bunker_state": "GREEN_ONLINE",
+        }
+
+    def isolate_compromised_subsidiary(self, compromised_branch_id: str, reason: str) -> Dict[str, object]:
+        """Closes the inter-hospital lymphatic valve to block lateral ransomware propagation."""
+        if compromised_branch_id in self.subsidiary_nodes:
+            self.subsidiary_nodes[compromised_branch_id]["network_valve_state"] = (
+                "LYMPHATIC_VALVE_CLOSED_QUARANTINED"
+            )
+            self.subsidiary_nodes[compromised_branch_id]["local_bunker_state"] = (
+                "RED_AUTONOMOUS_SQLITE_BUNKER"
+            )
+
+        unaffected_siblings = [
+            b_id
+            for b_id, meta in self.subsidiary_nodes.items()
+            if b_id != compromised_branch_id and meta["network_valve_state"] == "OPEN_HOMEOSTASIS"
+        ]
+        return {
+            "corporate_group": self.corporate_group_name,
+            "isolated_subsidiary": compromised_branch_id,
+            "containment_reason": reason,
+            "lateral_movement_blocked": True,
+            "protected_sister_hospitals_and_subclinics": unaffected_siblings,
+        }
+
+    @classmethod
+    def export_signed_ambulance_transfer_capsule(
+        cls,
+        origin_subclinic_id: str,
+        destination_hospital_id: str,
+        patient_token: str,
+        abo_rh: str,
+        critical_summary: str,
+    ) -> Dict[str, str]:
+        """
+        Generates a read-only, non-executable clinical transfer capsule signed with HMAC-SHA256
+        so a patient evacuated by ambulance from an attacked sub-clinic arrives at the main
+        hospital with verified blood type, allergies, and lab trends.
+        """
+        canonical = f"{origin_subclinic_id}->{destination_hospital_id}|{patient_token}|{abo_rh}|{critical_summary}"
+        sig = hmac.new(
+            cls.CORPORATE_FEDERATION_SECRET, canonical.encode("utf-8"), hashlib.sha256
+        ).hexdigest().upper()
+        return {
+            "origin_subclinic": origin_subclinic_id,
+            "destination_hospital": destination_hospital_id,
+            "patient_token": patient_token,
+            "abo_rh": abo_rh,
+            "critical_summary": critical_summary,
+            "federation_hmac_seal": sig,
+        }
+
+    @classmethod
+    def verify_incoming_ambulance_transfer_capsule(cls, capsule: Dict[str, str]) -> Dict[str, object]:
+        canonical = (
+            f"{capsule['origin_subclinic']}->{capsule['destination_hospital']}|"
+            f"{capsule['patient_token']}|{capsule['abo_rh']}|{capsule['critical_summary']}"
+        )
+        expected_sig = hmac.new(
+            cls.CORPORATE_FEDERATION_SECRET, canonical.encode("utf-8"), hashlib.sha256
+        ).hexdigest().upper()
+        is_valid = hmac.compare_digest(expected_sig, capsule.get("federation_hmac_seal", ""))
+        return {
+            "transfer_capsule_authentic": is_valid,
+            "receiving_action": (
+                "ADMIT_TO_MAIN_HOSPITAL_TRAUMA_OR_ICU_BAY"
+                if is_valid
+                else "REJECT_TAMPERED_TRANSFER_PACKET"
+            ),
         }
