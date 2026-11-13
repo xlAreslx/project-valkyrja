@@ -1,14 +1,16 @@
 """
-Project VALKYRJA — Core Module 1: Active Deception, Barium Watermarking & Protocol UNICORSE
-Architecture: Hexagonal Core (Domain-Agnostic Deception Engine)
+Project VALKYRJA — Core Module 1: Active Deception, Barium Watermarking,
+Protocol UNICORSE & Lymphatic DDoS Sinkhole Filter.
+Architecture: Hexagonal Core (Domain-Agnostic Deception & Traffic Drainage Engine)
 Compliance Target: EU NIS2 Directive / Sweden Cybersäkerhetslagen (SFS 2025:1506)
 
 Implements:
 1. Endothelial Honeypot & Vasoconstriction Tarpit (2 bytes / 30s).
 2. "Barium Meal" Chaff Stream with rolling HMAC-SHA256 steganographic watermarks.
 3. PROTOCOL U.N.I.C.O.R.S.E. (Unending Nested Illusion & Cryptographic Obfuscation
-   Reflective Sandbox Engine): Deterministic procedural Mirror Wall that traps attackers
-   in an infinite, zero-disk-footprint directory and SQL labyrinth.
+   Reflective Sandbox Engine): Deterministic procedural Mirror Wall labyrinth.
+4. Lymphatic DDoS Sinkhole & Selectin Priority Filter: Drops sub-10ms botnet micro-bursts
+   into a zero-memory blackhole while granting verified hospital HLA terminals an express lane.
 """
 
 import asyncio
@@ -80,8 +82,6 @@ class ProtocolUnicorseMirrorMaze:
     PROTOCOL U.N.I.C.O.R.S.E.:
     Unending Nested Illusion & Cryptographic Obfuscation Reflective Sandbox Engine.
     Generates an infinite, deterministic virtual filesystem and database schema in RAM.
-    Regardless of how deep the attacker navigates (10 or 10,000 levels), new plausible
-    clinical/vault subdirectories and Barium-watermarked decoy files are synthesized on the fly.
     """
 
     DECOY_DIR_PREFIXES = (
@@ -99,12 +99,11 @@ class ProtocolUnicorseMirrorMaze:
         path_hash = hashlib.sha256(MASTER_SECRET_SEED + normalized_path.encode("utf-8")).hexdigest()
         barium_token = generate_rolling_barium_token()
 
-        # Deterministically synthesize 4 child directories and 3 decoy files from the hash
         virtual_subdirs: List[str] = []
         for i in range(4):
-             slice_hex = path_hash[i * 4 : (i + 1) * 4]
-             prefix = cls.DECOY_DIR_PREFIXES[(int(slice_hex, 16)) % len(cls.DECOY_DIR_PREFIXES)]
-             virtual_subdirs.append(f"{normalized_path.rstrip('/')}/{prefix}_{slice_hex}/")
+            slice_hex = path_hash[i * 4 : (i + 1) * 4]
+            prefix = cls.DECOY_DIR_PREFIXES[(int(slice_hex, 16)) % len(cls.DECOY_DIR_PREFIXES)]
+            virtual_subdirs.append(f"{normalized_path.rstrip('/')}/{prefix}_{slice_hex}/")
 
         decoy_files = [
             {
@@ -128,6 +127,7 @@ class ProtocolUnicorseMirrorMaze:
             "canary_token_injected": barium_token,
         }
 
+
 # =====================================================================
 # LYMPHATIC DDoS SINKHOLE & SELECTIN PRIORITY FILTER
 # =====================================================================
@@ -145,6 +145,13 @@ class LymphaticDDoSSinkholeFilter:
         self._last_request_timestamp: Dict[str, float] = {}
         self.sinkholed_drops_count: int = 0
 
+    @staticmethod
+    def generate_valid_selectin_header(branch_id: str = ACTIVE_BRANCH_ID) -> str:
+        """Generates the hardware HMAC token used by legitimate clinical terminals & IoMT."""
+        return hmac.new(
+            MASTER_SECRET_SEED, f"SELECTIN_VIP:{branch_id}".encode("utf-8"), hashlib.sha256
+        ).hexdigest()[:16]
+
     def inspect_incoming_packet(
         self,
         source_ip: str,
@@ -154,9 +161,7 @@ class LymphaticDDoSSinkholeFilter:
         now = time.perf_counter() if current_time is None else current_time
 
         # 1. Selectin Priority Lane: Verified clinical terminals bypass DDoS throttling
-        expected_selectin = hmac.new(
-            MASTER_SECRET_SEED, f"SELECTIN_VIP:{ACTIVE_BRANCH_ID}".encode("utf-8"), hashlib.sha256
-        ).hexdigest()[:16]
+        expected_selectin = self.generate_valid_selectin_header(ACTIVE_BRANCH_ID)
 
         if hla_selectin_header and hmac.compare_digest(hla_selectin_header, expected_selectin):
             return {
@@ -181,6 +186,7 @@ class LymphaticDDoSSinkholeFilter:
             "reason": "Normal physiological/human request cadence",
         }
 
+
 async def generate_barium_honey_data_stream(attacker_ip: str) -> AsyncGenerator[bytes, None]:
     """Streams synthetic records from RAM injected with the rolling Barium watermark."""
     rolling_token = generate_rolling_barium_token()
@@ -197,11 +203,20 @@ async def generate_barium_honey_data_stream(attacker_ip: str) -> AsyncGenerator[
         await asyncio.sleep(0.05)
 
 
+_ddos_filter = LymphaticDDoSSinkholeFilter()
+
+
 async def handle_endothelial_breach(
     reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 ) -> None:
     peer_info = writer.get_extra_info("peername")
     attacker_ip = peer_info[0] if peer_info else "UNKNOWN_IP"
+
+    # Pre-check against high-frequency DDoS micro-bursts before allocating heavy resources
+    ddos_verdict = _ddos_filter.inspect_incoming_packet(source_ip=attacker_ip)
+    if ddos_verdict["routing_decision"] == "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP":
+        writer.close()
+        return
 
     try:
         request_bytes = await asyncio.wait_for(reader.read(1024), timeout=5.0)
@@ -217,7 +232,6 @@ async def handle_endothelial_breach(
                 writer.write(chunk)
                 await writer.drain()
         elif any(k in request_str.upper() for k in exploration_keywords):
-            # Activate PROTOCOL UNICORSE Infinite Mirror Maze
             maze_node = ProtocolUnicorseMirrorMaze.reflect_infinite_labyrinth_node(request_str)
             writer.write((json.dumps(maze_node, indent=2) + "\n").encode("utf-8"))
             await writer.drain()
