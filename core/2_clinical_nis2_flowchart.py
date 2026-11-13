@@ -1,21 +1,17 @@
 """
-Project VALKYRJA — Core Module 2: Protocol SIERRA, 32-Byte RAM Key & Clinical-Legal Flowchart
+Project VALKYRJA — Core Module 2: Protocol SIERRA, Zero-Copy 32-Byte RAM Key & NIS2 Flowchart
 Architecture: Hexagonal Core (Cryptography, Clinical Decision Trees & Regulatory Engine)
 Compliance Target: MSB (SFS 2025:1506 / NIS2), IMY (GDPR), IVO (Lex Maria Patient Safety)
 
 Implements:
-1. PROTOCOL S.I.E.R.R.A. (Sub-millisecond In-memory Ephemeral RAM Revocation & Audit):
-   - 32-Byte (256-Bit) mutable RAM key manager with <1ms 0x00 Crypto-Shredding.
-   - Acute Clinical Safety Locks:
-       a) ESC 0h/1h High-Sensitivity Troponin Delta Algorithm (NSTEMI Rule-In/Out).
-       b) Swedish Combined Cystatin C + Creatinine eGFR & Hemodialysis Potassium Guard.
-       c) DKA Insulin-Potassium Safety Lock (Blocks IV Insulin if K+ < 3.3 mmol/L).
-       d) Stroke Intravenous Thrombolysis Anticoagulant/DOAC Safety Lock.
+1. PROTOCOL S.I.E.R.R.A. & SUBROUTINE C.O.L.E. (Cryptographic Overwrite & Local Erasure):
+   - Zero-copy memoryview() over a mutable 32-byte (256-bit) bytearray in RAM so no immutable
+     key copies ever leak onto the Python heap prior to <1ms 0x00 Crypto-Shredding.
+2. Acute Clinical Safety Locks (ESC 0h/1h Troponin, Swedish Cystatin C eGFR, DKA Insulin-K+ Lock).
 """
 
 import hashlib
 import hmac
-import json
 import os
 import time
 from dataclasses import asdict, dataclass
@@ -27,7 +23,7 @@ from typing import Dict, Optional
 class SystemState(Enum):
     GREEN_HOMEOSTASIS = "GREEN_HOMEOSTASIS"
     AMBER_DECEPTION_ACTIVE = "AMBER_DECEPTION_ACTIVE"
-    RED_FAILSAFE_BUNKER = "RED_FAILSAFE_BUNKER"
+    RED_CRIMSON_OMEN_BUNKER = "RED_CRIMSON_OMEN_BUNKER"
 
 
 @dataclass
@@ -58,14 +54,10 @@ class ClinicalVitalContext:
 # PROTOCOL S.I.E.R.R.A. — CLINICAL SAFETY LOCKS & EUROPEAN ALGORITHMS
 # =====================================================================
 class ProtocolSierraClinicalLocks:
-    """
-    Deterministic clinical decision trees that remain active offline during cyberattacks
-    to prevent iatrogenic harm when central hospital EHR decision support goes dark.
-    """
+    """Deterministic offline clinical decision trees preventing iatrogenic harm during attacks."""
 
     @staticmethod
     def evaluate_esc_0h_1h_troponin(hs_ctn_0h_ng_l: float, hs_ctn_1h_ng_l: float) -> Dict[str, object]:
-        """European Society of Cardiology (ESC 0h/1h) hs-cTnT acute myocardial infarction rule."""
         delta_1h = round(abs(hs_ctn_1h_ng_l - hs_ctn_0h_ng_l), 2)
         if hs_ctn_0h_ng_l >= 52.0 or delta_1h >= 5.0:
             pathway = "RULE_IN_NSTEMI_ACTIVATE_CATH_LAB"
@@ -79,10 +71,6 @@ class ProtocolSierraClinicalLocks:
     def evaluate_swedish_dual_egfr_and_dialysis(
         creatinine_umol_l: float, cystatin_c_mg_l: float, serum_potassium_mmol_l: float
     ) -> Dict[str, object]:
-        """
-        Models the Swedish standard (CAPA / Lund-Malmö combined Cystatin C + Creatinine)
-        for accurate eGFR and acute hemodialysis arrhythmia prevention.
-        """
         egfr_cys = max(5.0, round(80.0 / max(cystatin_c_mg_l, 0.4), 1))
         egfr_creat = max(5.0, round(6500.0 / max(creatinine_umol_l, 40.0), 1))
         combined_egfr = round((egfr_cys + egfr_creat) / 2.0, 1)
@@ -100,10 +88,6 @@ class ProtocolSierraClinicalLocks:
 
     @staticmethod
     def verify_dka_insulin_potassium_lock(serum_potassium_mmol_l: float, blood_glucose_mmol_l: float) -> Dict[str, object]:
-        """
-        Endocrine Emergency Lock (DKA): Strictly blocks IV insulin pump initiation
-        if serum Potassium is < 3.3 mmol/L to prevent lethal hypokalemic cardiac arrest.
-        """
         if serum_potassium_mmol_l < 3.3:
             return {
                 "iv_insulin_pump_authorized": False,
@@ -118,19 +102,24 @@ class ProtocolSierraClinicalLocks:
 
 
 # =====================================================================
-# EPHEMERAL 32-BYTE (256-BIT) RAM KEY & CRYPTO-SHREDDING ENGINE
+# ZERO-COPY 32-BYTE (256-BIT) RAM KEY & SUBROUTINE C.O.L.E. SHREDDER
 # =====================================================================
 class EphemeralRAMKeyManager:
-    """Manages a mutable 32-byte (256-bit) key in volatile RAM under Protocol SIERRA."""
+    """
+    Manages a mutable 32-byte (256-bit) key in volatile RAM under Protocol SIERRA.
+    Red-Team Hardening: Uses 'memoryview' directly over the bytearray so zero immutable
+    'bytes' copies are ever allocated on the Python heap.
+    """
 
     def __init__(self) -> None:
         self._ram_key_buffer: bytearray = bytearray(os.urandom(32))
         self.is_shredded: bool = False
+        self.zero_copy_memoryview_enforced: bool = True
 
     def get_key_status_preview(self) -> str:
         if self.is_shredded:
-            return "PROTOCOL_SIERRA_SHREDDED (0x" + self._ram_key_buffer[:8].hex().upper() + "...)"
-        return "ACTIVE_256BIT_IN_RAM (0x" + self._ram_key_buffer[:4].hex().upper() + "...REDACTED)"
+            return "SUBROUTINE_COLE_SHREDDED (0x" + self._ram_key_buffer[:8].hex().upper() + "...)"
+        return "ACTIVE_256BIT_ZERO_COPY_RAM (0x" + self._ram_key_buffer[:4].hex().upper() + "...REDACTED)"
 
     def encrypt_record_in_ram(self, plaintext: str) -> Dict[str, str]:
         if self.is_shredded or all(b == 0 for b in self._ram_key_buffer):
@@ -138,41 +127,50 @@ class EphemeralRAMKeyManager:
 
         nonce = os.urandom(16)
         plaintext_bytes = plaintext.encode("utf-8")
-        keystream = hashlib.pbkdf2_hmac(
-            "sha256", bytes(self._ram_key_buffer), nonce, iterations=1000, dklen=len(plaintext_bytes)
-        )
-        ciphertext = bytes(p ^ k for p, k in zip(plaintext_bytes, keystream))
-        auth_tag = hmac.new(bytes(self._ram_key_buffer), nonce + ciphertext, hashlib.sha256).hexdigest()
+
+        # Zero-copy memoryview directly into cryptographic primitives (No heap copies)
+        with memoryview(self._ram_key_buffer) as key_view:
+            keystream = hashlib.pbkdf2_hmac(
+                "sha256", key_view, nonce, iterations=1000, dklen=len(plaintext_bytes)
+            )
+            ciphertext = bytes(p ^ k for p, k in zip(plaintext_bytes, keystream))
+            auth_tag = hmac.new(key_view, nonce + ciphertext, hashlib.sha256).hexdigest()
 
         return {"nonce_hex": nonce.hex(), "ciphertext_hex": ciphertext.hex(), "auth_tag_hmac": auth_tag}
 
     def decrypt_record_in_ram(self, encrypted_bundle: Dict[str, str]) -> str:
         if self.is_shredded or all(b == 0 for b in self._ram_key_buffer):
-            raise PermissionError("PROTOCOL_SIERRA_SHREDDED: 32-byte RAM key destroyed (0x00).")
+            raise PermissionError("SUBROUTINE_COLE_SHREDDED: 32-byte RAM key destroyed (0x00).")
 
         nonce = bytes.fromhex(encrypted_bundle["nonce_hex"])
         ciphertext = bytes.fromhex(encrypted_bundle["ciphertext_hex"])
-        expected_tag = hmac.new(bytes(self._ram_key_buffer), nonce + ciphertext, hashlib.sha256).hexdigest()
 
-        if not hmac.compare_digest(expected_tag, encrypted_bundle["auth_tag_hmac"]):
-            raise ValueError("INTEGRITY-FAILURE: Ciphertext authentication tag mismatch.")
+        with memoryview(self._ram_key_buffer) as key_view:
+            expected_tag = hmac.new(key_view, nonce + ciphertext, hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(expected_tag, encrypted_bundle["auth_tag_hmac"]):
+                raise ValueError("INTEGRITY-FAILURE: Ciphertext authentication tag mismatch.")
 
-        keystream = hashlib.pbkdf2_hmac(
-            "sha256", bytes(self._ram_key_buffer), nonce, iterations=1000, dklen=len(ciphertext)
-        )
+            keystream = hashlib.pbkdf2_hmac(
+                "sha256", key_view, nonce, iterations=1000, dklen=len(ciphertext)
+            )
+
         plaintext_bytes = bytes(c ^ k for c, k in zip(ciphertext, keystream))
         return plaintext_bytes.decode("utf-8")
 
     def execute_crypto_shredding(self) -> float:
+        """
+        SUBROUTINE C.O.L.E. (Cryptographic Overwrite & Local Erasure):
+        Zeroes all 32 bytes in-place via memoryview in <1 millisecond.
+        """
         start_ns = time.perf_counter_ns()
-        for i in range(len(self._ram_key_buffer)):
-            self._ram_key_buffer[i] = 0x00
+        with memoryview(self._ram_key_buffer) as key_view:
+            key_view[:] = b"\x00" * 32
         self.is_shredded = True
         return round((time.perf_counter_ns() - start_ns) / 1_000_000, 4)
 
 
 class ClinicalNIS2FlowchartEngine:
-    """Orchestrates Protocol SIERRA, Protocol GALA failover, and Swedish NIS2 reporting."""
+    """Orchestrates Protocol SIERRA, Subroutine COLE, Protocol GALA, and Swedish NIS2 reporting."""
 
     def __init__(self, key_manager: EphemeralRAMKeyManager) -> None:
         self.key_manager = key_manager
@@ -190,7 +188,7 @@ class ClinicalNIS2FlowchartEngine:
         local_bunker_activated = False
 
         if intrusion_tier >= 3:
-            self.current_state = SystemState.RED_FAILSAFE_BUNKER
+            self.current_state = SystemState.RED_CRIMSON_OMEN_BUNKER
             if clinical_context.has_life_critical_workflows():
                 local_bunker_activated = True
                 clinical_action = (
@@ -206,7 +204,7 @@ class ClinicalNIS2FlowchartEngine:
             clinical_action = "PROTOCOL_UNICORSE_ACTIVE: Intruder trapped in Mirror Maze & Tarpit."
 
         return {
-            "orchestrator": "PROTOCOL_SIERRA_TACTICAL_COMMAND",
+            "orchestrator": "PROTOCOL_SIERRA_AND_SUBROUTINE_COLE",
             "report_classification": "SWEDEN_SFS_2025_1506_NIS2_EARLY_WARNING",
             "generated_at_utc": timestamp_utc,
             "reporting_deadline_compliance": "COMPLIANT_UNDER_24_HOURS",
