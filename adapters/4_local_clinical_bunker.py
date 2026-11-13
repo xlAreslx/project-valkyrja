@@ -5,15 +5,17 @@ Compliance Target: Sweden IVO (Lex Maria Patient Safety) & SFS 2025:1506 (NIS2)
 
 Implements:
 1. PROTOCOL G.A.L.A. & B.I.O.F.O.A.M. (Row-Level HMAC + 5-Table Merkle Manifest Seal):
-   - Protects the 12 High-Mortality Clinical Pillars, 5-Tier Cryo Matrix, and OT Backup Power.
-   - Detects both column tampering (UPDATE) and surgical row deletion (DELETE) across all 5 tables.
+   - Bilateral Thermo-Cryogenic Envelope [T_min, T_max]: Protects against both warming AND
+     over-cooling/freezing iatrogenic damage (e.g., RBC freezing hemolysis < +2°C, platelet
+     cold-activation < +20°C, PVC cryo-fracture < -40°C, and LN2 sensor spoofing < -200°C).
+   - Signed N+1 Cold-Chain Maintenance Transfer: Allows scheduled refrigerator/freezer
+     maintenance without breaking Merkle seals by enforcing prior unit handover to backup units.
 2. PROTOCOL S.O.F.I.A. (Safeguarded Offline Failover for Infant & Acute-care):
    - Cryptographic SHA-256 Mother-Infant Wristband Dyad Pairing for NICU/Nursery (Cuneros).
 """
 
 import hashlib
 import hmac
-import json
 import os
 import sqlite3
 import time
@@ -26,7 +28,7 @@ BIOFOAM_DEFAULT_KEY = "PROTOCOL_GALA_BIOFOAM_ROW_INTEGRITY_SEED_2026"
 class LocalClinicalSurvivalBunker:
     """
     PROTOCOL G.A.L.A., PROTOCOL S.O.F.I.A. & B.I.O.F.O.A.M. Offline Survival Node.
-    Guarantees sub-5ms local clinical, cryogenic, and electrical telemetry continuity.
+    Guarantees sub-5ms local clinical, bilateral cryogenic, and electrical telemetry continuity.
     """
 
     SOFIA_NURSERY_SECRET: bytes = os.environ.get("VALKYRJA_SOFIA_KEY", SOFIA_DEFAULT_KEY).encode("utf-8")
@@ -67,6 +69,7 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
+        # Table 2: Bilateral Thermo-Cryogenic Matrix [min_safe_celsius, max_safe_celsius]
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS blood_bank_reserve (
@@ -75,6 +78,8 @@ class LocalClinicalSurvivalBunker:
                 component_type TEXT NOT NULL,
                 fridge_id TEXT NOT NULL,
                 temp_celsius REAL NOT NULL,
+                min_safe_celsius REAL NOT NULL,
+                max_safe_celsius REAL NOT NULL,
                 status TEXT NOT NULL
             )
             """
@@ -138,12 +143,7 @@ class LocalClinicalSurvivalBunker:
         return hmac.new(cls.BIOFOAM_ROW_SECRET, canonical.encode("utf-8"), hashlib.sha256).hexdigest()[:20].upper()
 
     def compute_full_bunker_merkle_manifest(self) -> str:
-        """
-        Red-Team v1.2 Merkle Manifest Seal:
-        Hashes the exact row count and canonical content of all 5 survival tables in SQLite.
-        Any surgical DELETE or cross-table modification (e.g., altering potassium in lab_panic_values)
-        immediately invalidates the root Merkle HMAC.
-        """
+        """Hashes the exact row count and canonical content of all 5 survival tables in SQLite."""
         cursor = self.conn.cursor()
         manifest_accumulator = hashlib.sha256()
 
@@ -161,10 +161,7 @@ class LocalClinicalSurvivalBunker:
         ).hexdigest().upper()
 
     def verify_bunker_row_integrity(self) -> Dict[str, object]:
-        """
-        Audits both individual B.I.O.F.O.A.M. row seals AND the 5-Table Merkle Manifest HMAC.
-        Detects column tampering (UPDATE), surgical row deletions (DELETE), and lab/cryo sabotage.
-        """
+        """Audits both individual B.I.O.F.O.A.M. row seals AND the 5-Table Merkle Manifest HMAC."""
         cursor = self.conn.cursor()
         tampered_patients: List[str] = []
         present_tokens: List[str] = []
@@ -188,12 +185,10 @@ class LocalClinicalSurvivalBunker:
             else:
                 tampered_patients.append(token)
 
-        # Detect surgical DELETE attacks on er_active_triage
         deleted_tokens = [t for t in self._expected_triage_tokens if t not in present_tokens]
         for missing in deleted_tokens:
             tampered_patients.append(f"DELETED:{missing}")
 
-        # Verify 5-Table Merkle Root Manifest (covers lab_panic_values, blood_bank_reserve, etc.)
         current_merkle = self.compute_full_bunker_merkle_manifest()
         merkle_intact = (
             self._bunker_merkle_manifest_hmac is not None
@@ -211,6 +206,112 @@ class LocalClinicalSurvivalBunker:
                 if is_intact
                 else "CRITICAL_IATROGENIC_TAMPER_ALERT_BLOCK_DISPLAY"
             ),
+        }
+
+    def audit_bilateral_thermo_cryogenic_safety(self) -> Dict[str, object]:
+        """
+        Evaluates all biological & cryogenic units against BOTH upper (warming) and
+        lower (freezing/hemolysis/cold-activation) temperature bounds [min_safe_celsius, max_safe_celsius].
+        """
+        cursor = self.conn.cursor()
+        safe_units: List[Dict[str, object]] = []
+        thermal_excursions: List[Dict[str, object]] = []
+
+        for row in cursor.execute("SELECT * FROM blood_bank_reserve"):
+            unit = dict(row)
+            temp = unit["temp_celsius"]
+            t_min = unit["min_safe_celsius"]
+            t_max = unit["max_safe_celsius"]
+
+            if temp < t_min:
+                unit["excursion_type"] = (
+                    "HYPOTHERMIC_FREEZING_OR_HEMOLYSIS_ALERT: Below min safe threshold!"
+                )
+                thermal_excursions.append(unit)
+            elif temp > t_max:
+                unit["excursion_type"] = (
+                    "HYPERTHERMIC_WARMING_SPOILAGE_ALERT: Above max safe threshold!"
+                )
+                thermal_excursions.append(unit)
+            else:
+                safe_units.append(unit)
+
+        return {
+            "all_units_within_bilateral_bounds": len(thermal_excursions) == 0,
+            "verified_safe_units_count": len(safe_units),
+            "quarantined_excursion_units": thermal_excursions,
+        }
+
+    @classmethod
+    def generate_maintenance_auth_token(
+        cls, target_fridge_id: str, backup_fridge_id: str, technician_id: str
+    ) -> str:
+        payload = f"MAINT_N1:{target_fridge_id}->{backup_fridge_id}:{technician_id}".encode("utf-8")
+        return hmac.new(cls.BIOFOAM_ROW_SECRET, payload, hashlib.sha256).hexdigest()[:18].upper()
+
+    def execute_signed_cold_chain_maintenance(
+        self,
+        target_fridge_id: str,
+        backup_fridge_id: str,
+        backup_verified_temp_c: float,
+        technician_id: str,
+        auth_token: str,
+    ) -> Dict[str, object]:
+        """
+        N+1 Cold-Chain Maintenance Handover Protocol:
+        1. Validates cryptographic maintenance token.
+        2. Verifies that the backup refrigerator/freezer is within bilateral safe temperature bounds
+           [min_safe_celsius, max_safe_celsius] for every unit inside target_fridge_id.
+        3. Transfers all biological units to backup_fridge_id and re-seals the 5-Table Merkle Manifest
+           so scheduled maintenance never triggers false tamper lockouts or leaves units uncooled.
+        """
+        expected_token = self.generate_maintenance_auth_token(
+            target_fridge_id, backup_fridge_id, technician_id
+        )
+        if not hmac.compare_digest(expected_token, auth_token.strip().upper()):
+            return {
+                "maintenance_authorized": False,
+                "status": "REJECTED_INVALID_MAINTENANCE_HMAC_TOKEN",
+            }
+
+        cursor = self.conn.cursor()
+        units_in_target = cursor.execute(
+            "SELECT * FROM blood_bank_reserve WHERE fridge_id = ?", (target_fridge_id,)
+        ).fetchall()
+
+        # Verify backup fridge temperature is safe for every unit before allowing transfer
+        for u in units_in_target:
+            if not (u["min_safe_celsius"] <= backup_verified_temp_c <= u["max_safe_celsius"]):
+                return {
+                    "maintenance_authorized": False,
+                    "status": (
+                        f"BLOCKED_THERMAL_INCOMPATIBILITY: Backup {backup_fridge_id} at "
+                        f"{backup_verified_temp_c}C violates [{u['min_safe_celsius']}C, "
+                        f"{u['max_safe_celsius']}C] for unit {u['unit_id']}!"
+                    ),
+                }
+
+        # Perform N+1 handover transfer and update status
+        cursor.execute(
+            """
+            UPDATE blood_bank_reserve
+            SET fridge_id = ?, temp_celsius = ?, status = 'TRANSFERRED_N1_MAINTENANCE_SAFE'
+            WHERE fridge_id = ?
+            """,
+            (backup_fridge_id, backup_verified_temp_c, target_fridge_id),
+        )
+        self.conn.commit()
+
+        # Re-seal the 5-Table Merkle Manifest after authorized N+1 handover
+        self._bunker_merkle_manifest_hmac = self.compute_full_bunker_merkle_manifest()
+
+        return {
+            "maintenance_authorized": True,
+            "status": "N1_COLD_CHAIN_HANDOVER_COMPLETE_MERKLE_RESEALED",
+            "transferred_units_count": len(units_in_target),
+            "offline_fridge_cleared_for_service": target_fridge_id,
+            "active_backup_fridge": backup_fridge_id,
+            "new_merkle_manifest_hmac": self._bunker_merkle_manifest_hmac[:16],
         }
 
     @classmethod
@@ -271,7 +372,7 @@ class LocalClinicalSurvivalBunker:
         }
 
     def seed_shadow_sync_snapshot(self) -> None:
-        """Populates all 5 tables and locks the B.I.O.F.O.A.M. + 5-Table Merkle Manifest Seal."""
+        """Populates all 5 tables with bilateral thermal bounds and locks the Merkle Manifest."""
         cursor = self.conn.cursor()
 
         raw_triage_rows = [
@@ -323,15 +424,16 @@ class LocalClinicalSurvivalBunker:
             sealed_triage_rows,
         )
 
+        # Bilateral Thermo-Cryogenic Matrix: (unit_id, group, type, fridge, temp_c, min_c, max_c, status)
         cursor.executemany(
-            "INSERT OR REPLACE INTO blood_bank_reserve VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO blood_bank_reserve VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                ("BLD-SE-ONEG-001", "O-", "Packed_RBC", "ER_FRIDGE_01", 3.6, "AVAILABLE_EMERGENCY"),
-                ("BLD-SE-ONEG-002", "O-", "Packed_RBC", "ER_FRIDGE_01", 3.8, "AVAILABLE_EMERGENCY"),
-                ("PLT-SE-AGIT-010", "O+", "Platelet_Concentrate_Agitator", "THERMO_22C_01", 21.8, "VIABLE_AGITATING"),
-                ("FFP-SE-CRYO-044", "AB+", "Fresh_Frozen_Plasma", "FREEZER_MINUS30_02", -31.5, "FROZEN_INTACT"),
-                ("VAC-SE-ULT-080", "N/A", "Oncology_Biologics_ULT", "ULT_MINUS80_01", -81.2, "ULTRA_COLD_INTACT"),
-                ("CRYO-LN2-STEM-99", "HLA-A2", "Hematopoietic_Stem_Cells_And_Cornea", "LN2_DEWAR_196", -195.8, "CRYO_VAPOR_LOCKED"),
+                ("BLD-SE-ONEG-001", "O-", "Packed_RBC", "ER_FRIDGE_01", 3.6, 2.0, 6.0, "AVAILABLE_EMERGENCY"),
+                ("BLD-SE-ONEG-002", "O-", "Packed_RBC", "ER_FRIDGE_01", 3.8, 2.0, 6.0, "AVAILABLE_EMERGENCY"),
+                ("PLT-SE-AGIT-010", "O+", "Platelet_Concentrate_Agitator", "THERMO_22C_01", 21.8, 20.0, 24.0, "VIABLE_AGITATING"),
+                ("FFP-SE-CRYO-044", "AB+", "Fresh_Frozen_Plasma", "FREEZER_MINUS30_02", -31.5, -40.0, -25.0, "FROZEN_INTACT"),
+                ("VAC-SE-ULT-080", "N/A", "Oncology_Biologics_ULT", "ULT_MINUS80_01", -81.2, -90.0, -70.0, "ULTRA_COLD_INTACT"),
+                ("CRYO-LN2-STEM-99", "HLA-A2", "Hematopoietic_Stem_Cells_And_Cornea", "LN2_DEWAR_196", -195.8, -200.0, -150.0, "CRYO_VAPOR_LOCKED"),
             ],
         )
 
@@ -403,8 +505,12 @@ class LocalClinicalSurvivalBunker:
         patients: List[Dict[str, object]] = [
             dict(row) for row in cursor.execute("SELECT * FROM er_active_triage ORDER BY retts_triage_level ASC")
         ]
+        # Bilateral thermal filter: only returns units strictly inside [min_safe_celsius, max_safe_celsius]
         thermo_cryo_units: List[Dict[str, object]] = [
-            dict(row) for row in cursor.execute("SELECT * FROM blood_bank_reserve WHERE temp_celsius <= 24.0")
+            dict(row)
+            for row in cursor.execute(
+                "SELECT * FROM blood_bank_reserve WHERE temp_celsius >= min_safe_celsius AND temp_celsius <= max_safe_celsius"
+            )
         ]
         panic_labs: List[Dict[str, object]] = [
             dict(row) for row in cursor.execute("SELECT * FROM lab_panic_values")
@@ -424,6 +530,7 @@ class LocalClinicalSurvivalBunker:
                 "PROTOCOL_GALA_12_PILLARS",
                 "PROTOCOL_SOFIA_NICU_SAFEGUARD",
                 "BIOFOAM_ROW_AND_5TABLE_MERKLE_SEAL",
+                "BILATERAL_CRYO_HEMOLYSIS_AND_N1_MAINT_GUARD",
                 "BIOENERGETIC_OT_POWER_ISLAND_MODE",
             ],
             "biofoam_integrity_audit": integrity_audit,
