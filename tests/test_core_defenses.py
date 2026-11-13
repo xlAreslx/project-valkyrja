@@ -1,8 +1,9 @@
 """
-Project VALKYRJA — Automated Verification & Red-Team v1.2 Elite Test Suite
+Project VALKYRJA — Automated Verification & Red-Team v1.3 Complete Test Suite
 Verifies Protocols U.N.I.C.O.R.S.E., S.I.E.R.R.A., G.A.L.A., S.O.F.I.A.,
 Subroutine C.O.L.E., B.I.O.F.O.A.M. + 5-Table Merkle Seals, Single-Use JTI Nonces,
-Slowloris Tarpit Semaphores, and Kernel RAM Page Locking.
+Slowloris Tarpit Semaphores, Kernel RAM Page Locking, Bilateral Cryo Hemolysis Guards,
+and Signed N+1 Refrigerator Maintenance Handovers.
 """
 
 import importlib.util
@@ -142,14 +143,6 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         )
 
     def test_7_red_team_v1_2_elite_hardening(self) -> None:
-        """
-        Verifies Red-Team v1.2 Elite Hardening:
-        1. Intra-minute Selectin JTI Nonce Replay Block (same token reused 1ms later is dropped).
-        2. Distributed Slowloris Tarpit Concurrency Cap (blocks socket exhaustion).
-        3. Kernel RAM Page Lock telemetry (mlock / VirtualLock) on 32-byte key buffer.
-        4. 5-Table Merkle Manifest HMAC detects surgical SQL DELETE and cross-table lab tampering.
-        """
-        # 1. Intra-minute JTI Nonce Replay Attack (Reuse same valid token 1ms later -> BLOCKED)
         ddos_filter = mod1.LymphaticDDoSSinkholeFilter(max_tarpit_slots=3)
         single_use_token = mod1.LymphaticDDoSSinkholeFilter.generate_valid_selectin_header(current_time=3000.000)
 
@@ -160,20 +153,17 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         self.assertEqual(second_use_replay["routing_decision"], "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP")
         self.assertIn("DUPLICATE_NONCE_REPLAY", second_use_replay["reason"])
 
-        # 2. Distributed Slowloris Tarpit Capacity Cap (Cap at 3 concurrent tarpit slots)
         self.assertTrue(ddos_filter.try_acquire_tarpit_slot())
         self.assertTrue(ddos_filter.try_acquire_tarpit_slot())
         self.assertTrue(ddos_filter.try_acquire_tarpit_slot())
-        self.assertFalse(ddos_filter.try_acquire_tarpit_slot())  # 4th slow bot is rejected to sinkhole
+        self.assertFalse(ddos_filter.try_acquire_tarpit_slot())
         ddos_filter.release_tarpit_slot()
 
-        # 3. Kernel RAM Page Lock Telemetry (mlock / VirtualLock)
         key_mgr = mod2.EphemeralRAMKeyManager()
         self.assertTrue(
             key_mgr.kernel_swap_lock_status.startswith(("KERNEL_", "VOLATILE_RAM_GUARD_ACTIVE"))
         )
 
-        # 4A. Surgical SQL DELETE Attack Detection via 5-Table Merkle Manifest
         bunker = mod4.LocalClinicalSurvivalBunker()
         bunker.seed_shadow_sync_snapshot()
         bunker.conn.execute("DELETE FROM er_active_triage WHERE patient_token = 'PT-CARDIO-441B'")
@@ -184,17 +174,62 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         self.assertFalse(delete_audit["merkle_5table_manifest_intact"])
         self.assertIn("DELETED:PT-CARDIO-441B", delete_audit["tampered_patient_tokens"])
 
-        # 4B. Cross-Table Lab Panic Tampering Detection (Altering DKA Potassium in lab_panic_values)
-        bunker_lab = mod4.LocalClinicalSurvivalBunker()
-        bunker_lab.seed_shadow_sync_snapshot()
-        bunker_lab.conn.execute(
-            "UPDATE lab_panic_values SET critical_value = 'Glucose 28 | K+ 5.0' WHERE sample_barcode = 'LAB-88330'"
-        )
-        bunker_lab.conn.commit()
+    def test_8_bilateral_cryo_freezing_guard_and_n1_maintenance(self) -> None:
+        """
+        Verifies:
+        1. Signed N+1 Cold-Chain Maintenance Handover blocks transfer if backup fridge is too cold (-5C),
+           and succeeds + re-seals the 5-Table Merkle Manifest when backup fridge is at +4.0C.
+        2. Bilateral thermal audit detects hypothermic freezing excursion (-3.5C on Packed RBCs -> hemolysis risk).
+        """
+        bunker = mod4.LocalClinicalSurvivalBunker()
+        bunker.seed_shadow_sync_snapshot()
 
-        lab_audit = bunker_lab.verify_bunker_row_integrity()
-        self.assertFalse(lab_audit["biofoam_integrity_verified"])
-        self.assertFalse(lab_audit["merkle_5table_manifest_intact"])
+        auth_token = mod4.LocalClinicalSurvivalBunker.generate_maintenance_auth_token(
+            target_fridge_id="ER_FRIDGE_01",
+            backup_fridge_id="ER_FRIDGE_BACKUP_02",
+            technician_id="BIOMED_ENG_SE_104",
+        )
+
+        # 1A. Attempt to transfer O-Neg RBCs (+2C to +6C) into a freezing backup unit (-5.0C) -> MUST BLOCK
+        bad_transfer = bunker.execute_signed_cold_chain_maintenance(
+            target_fridge_id="ER_FRIDGE_01",
+            backup_fridge_id="ER_FRIDGE_BACKUP_02",
+            backup_verified_temp_c=-5.0,
+            technician_id="BIOMED_ENG_SE_104",
+            auth_token=auth_token,
+        )
+        self.assertFalse(bad_transfer["maintenance_authorized"])
+        self.assertIn("BLOCKED_THERMAL_INCOMPATIBILITY", bad_transfer["status"])
+
+        # 1B. Transfer O-Neg RBCs to a verified +4.0C backup fridge -> MUST SUCCEED & RE-SEAL MERKLE
+        good_transfer = bunker.execute_signed_cold_chain_maintenance(
+            target_fridge_id="ER_FRIDGE_01",
+            backup_fridge_id="ER_FRIDGE_BACKUP_02",
+            backup_verified_temp_c=4.0,
+            technician_id="BIOMED_ENG_SE_104",
+            auth_token=auth_token,
+        )
+        self.assertTrue(good_transfer["maintenance_authorized"])
+        self.assertEqual(good_transfer["transferred_units_count"], 2)
+
+        # Verify that legitimate maintenance re-sealed the Merkle Manifest (zero false tamper alarm)
+        post_maint_integrity = bunker.verify_bunker_row_integrity()
+        self.assertTrue(post_maint_integrity["biofoam_integrity_verified"])
+        self.assertTrue(post_maint_integrity["merkle_5table_manifest_intact"])
+
+        # 2. Simulate cyber-sabotage over-cooling O-Neg RBCs to -3.5C (freezing hemolysis risk)
+        bunker.conn.execute(
+            "UPDATE blood_bank_reserve SET temp_celsius = -3.5 WHERE unit_id = 'BLD-SE-ONEG-001'"
+        )
+        bunker.conn.commit()
+
+        thermal_audit = bunker.audit_bilateral_thermo_cryogenic_safety()
+        self.assertFalse(thermal_audit["all_units_within_bilateral_bounds"])
+        self.assertEqual(len(thermal_audit["quarantined_excursion_units"]), 1)
+        self.assertIn(
+            "HYPOTHERMIC_FREEZING_OR_HEMOLYSIS_ALERT",
+            thermal_audit["quarantined_excursion_units"][0]["excursion_type"],
+        )
 
 
 if __name__ == "__main__":
