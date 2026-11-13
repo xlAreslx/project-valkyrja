@@ -4,11 +4,9 @@ Architecture: Hexagonal Secondary Adapter (MedCore Clinical & Bioenergetic OT Co
 Compliance Target: Sweden IVO (Lex Maria Patient Safety) & SFS 2025:1506 (NIS2)
 
 Implements:
-1. PROTOCOL G.A.L.A. & B.I.O.F.O.A.M. Row-Level HMAC Integrity Sealing:
+1. PROTOCOL G.A.L.A. & B.I.O.F.O.A.M. (Row-Level HMAC + 5-Table Merkle Manifest Seal):
    - Protects the 12 High-Mortality Clinical Pillars, 5-Tier Cryo Matrix, and OT Backup Power.
-   - B.I.O.F.O.A.M. (Buffered In-memory Offline Failover & Organ-support Autonomous Matrix):
-     Signs every SQLite patient row with HMAC-SHA256 to prevent silent iatrogenic tampering
-     (e.g., altering blood type O- to AB+ or erasing lethal allergies).
+   - Detects both column tampering (UPDATE) and surgical row deletion (DELETE) across all 5 tables.
 2. PROTOCOL S.O.F.I.A. (Safeguarded Offline Failover for Infant & Acute-care):
    - Cryptographic SHA-256 Mother-Infant Wristband Dyad Pairing for NICU/Nursery (Cuneros).
 """
@@ -19,7 +17,7 @@ import json
 import os
 import sqlite3
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 SOFIA_DEFAULT_KEY = "PROTOCOL_SOFIA_NICU_MOTHER_INFANT_DYAD_KEY_2026"
 BIOFOAM_DEFAULT_KEY = "PROTOCOL_GALA_BIOFOAM_ROW_INTEGRITY_SEED_2026"
@@ -34,16 +32,25 @@ class LocalClinicalSurvivalBunker:
     SOFIA_NURSERY_SECRET: bytes = os.environ.get("VALKYRJA_SOFIA_KEY", SOFIA_DEFAULT_KEY).encode("utf-8")
     BIOFOAM_ROW_SECRET: bytes = os.environ.get("VALKYRJA_BIOFOAM_KEY", BIOFOAM_DEFAULT_KEY).encode("utf-8")
 
+    PROTECTED_TABLES = (
+        "er_active_triage",
+        "blood_bank_reserve",
+        "lab_panic_values",
+        "protocol_sofia_nicu_nursery",
+        "ot_bioenergetic_power_grid",
+    )
+
     def __init__(self, db_path: str = ":memory:") -> None:
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
+        self._bunker_merkle_manifest_hmac: Optional[str] = None
+        self._expected_triage_tokens: List[str] = []
         self._initialize_survival_schema()
 
     def _initialize_survival_schema(self) -> None:
         cursor = self.conn.cursor()
 
-        # Table 1: Active ER Triage & 12-Pillar Status with BIOFOAM Row-Level HMAC Seal
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS er_active_triage (
@@ -60,7 +67,6 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 2: Full Thermo-Cryogenic & Blood/Transplant Matrix (+22C to -196C LN2)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS blood_bank_reserve (
@@ -74,7 +80,6 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 3: Critical Laboratory Panic Values
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS lab_panic_values (
@@ -87,7 +92,6 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 4: PROTOCOL S.O.F.I.A. — NICU (UCIN) & Nursery (Cuneros)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS protocol_sofia_nicu_nursery (
@@ -102,7 +106,6 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 5: Bioenergetic OT Electrical Grid, UPS & Diesel Backup Generators (J.A.C.K. Daemon)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS ot_bioenergetic_power_grid (
@@ -130,25 +133,48 @@ class LocalClinicalSurvivalBunker:
         organ_params: str,
         bay: str,
     ) -> str:
-        """
-        B.I.O.F.O.A.M. Seal: Computes an HMAC-SHA256 tag over every clinical field in a row.
-        Any unauthorized alteration of ABO/Rh, allergies, or dosing breaks the seal immediately.
-        """
+        """Computes a row-level B.I.O.F.O.A.M. HMAC-SHA256 tag over every clinical field."""
         canonical = f"{patient_token}|{retts_level}|{pillar}|{abo_rh}|{antibodies}|{allergies}|{organ_params}|{bay}"
         return hmac.new(cls.BIOFOAM_ROW_SECRET, canonical.encode("utf-8"), hashlib.sha256).hexdigest()[:20].upper()
 
+    def compute_full_bunker_merkle_manifest(self) -> str:
+        """
+        Red-Team v1.2 Merkle Manifest Seal:
+        Hashes the exact row count and canonical content of all 5 survival tables in SQLite.
+        Any surgical DELETE or cross-table modification (e.g., altering potassium in lab_panic_values)
+        immediately invalidates the root Merkle HMAC.
+        """
+        cursor = self.conn.cursor()
+        manifest_accumulator = hashlib.sha256()
+
+        for table_name in self.PROTECTED_TABLES:
+            rows = cursor.execute(f"SELECT * FROM {table_name} ORDER BY 1 ASC").fetchall()
+            table_header = f"TABLE:{table_name}:COUNT={len(rows)}|".encode("utf-8")
+            manifest_accumulator.update(table_header)
+            for r in rows:
+                row_canonical = "|".join(str(r[col]) for col in r.keys()).encode("utf-8")
+                row_digest = hashlib.sha256(row_canonical).digest()
+                manifest_accumulator.update(row_digest)
+
+        return hmac.new(
+            self.BIOFOAM_ROW_SECRET, manifest_accumulator.digest(), hashlib.sha256
+        ).hexdigest().upper()
+
     def verify_bunker_row_integrity(self) -> Dict[str, object]:
         """
-        Audits all rows in 'er_active_triage' against their BIOFOAM HMAC seals.
-        Detects silent iatrogenic tampering (e.g., changing O- blood group to AB+ in SQLite).
+        Audits both individual B.I.O.F.O.A.M. row seals AND the 5-Table Merkle Manifest HMAC.
+        Detects column tampering (UPDATE), surgical row deletions (DELETE), and lab/cryo sabotage.
         """
         cursor = self.conn.cursor()
         tampered_patients: List[str] = []
+        present_tokens: List[str] = []
         verified_count = 0
 
         for row in cursor.execute("SELECT * FROM er_active_triage"):
+            token = row["patient_token"]
+            present_tokens.append(token)
             expected_hmac = self.compute_biofoam_row_hmac(
-                row["patient_token"],
+                token,
                 row["retts_triage_level"],
                 row["clinical_pillar"],
                 row["abo_rh"],
@@ -160,15 +186,28 @@ class LocalClinicalSurvivalBunker:
             if hmac.compare_digest(expected_hmac, row["biofoam_row_hmac"]):
                 verified_count += 1
             else:
-                tampered_patients.append(row["patient_token"])
+                tampered_patients.append(token)
 
-        is_intact = len(tampered_patients) == 0
+        # Detect surgical DELETE attacks on er_active_triage
+        deleted_tokens = [t for t in self._expected_triage_tokens if t not in present_tokens]
+        for missing in deleted_tokens:
+            tampered_patients.append(f"DELETED:{missing}")
+
+        # Verify 5-Table Merkle Root Manifest (covers lab_panic_values, blood_bank_reserve, etc.)
+        current_merkle = self.compute_full_bunker_merkle_manifest()
+        merkle_intact = (
+            self._bunker_merkle_manifest_hmac is not None
+            and hmac.compare_digest(current_merkle, self._bunker_merkle_manifest_hmac)
+        )
+
+        is_intact = (len(tampered_patients) == 0) and merkle_intact
         return {
             "biofoam_integrity_verified": is_intact,
+            "merkle_5table_manifest_intact": merkle_intact,
             "verified_rows_count": verified_count,
             "tampered_patient_tokens": tampered_patients,
             "clinical_safety_status": (
-                "BIOFOAM_SEAL_INTACT_SAFE_FOR_CLINICAL_USE"
+                "BIOFOAM_AND_MERKLE_SEAL_INTACT_SAFE_FOR_CLINICAL_USE"
                 if is_intact
                 else "CRITICAL_IATROGENIC_TAMPER_ALERT_BLOCK_DISPLAY"
             ),
@@ -232,7 +271,7 @@ class LocalClinicalSurvivalBunker:
         }
 
     def seed_shadow_sync_snapshot(self) -> None:
-        """Populates the 12 Clinical Pillars (sealed with BIOFOAM HMAC), Cryo Matrix, SOFIA & Power."""
+        """Populates all 5 tables and locks the B.I.O.F.O.A.M. + 5-Table Merkle Manifest Seal."""
         cursor = self.conn.cursor()
 
         raw_triage_rows = [
@@ -274,6 +313,7 @@ class LocalClinicalSurvivalBunker:
             ),
         ]
 
+        self._expected_triage_tokens = [r[0] for r in raw_triage_rows]
         sealed_triage_rows = [
             (*row, self.compute_biofoam_row_hmac(*row)) for row in raw_triage_rows
         ]
@@ -352,6 +392,7 @@ class LocalClinicalSurvivalBunker:
             ],
         )
         self.conn.commit()
+        self._bunker_merkle_manifest_hmac = self.compute_full_bunker_merkle_manifest()
 
     def query_emergency_survival_snapshot(self) -> Dict[str, object]:
         """Retrieves the complete Protocol GALA, BIOFOAM & Protocol SOFIA survival state."""
@@ -382,7 +423,7 @@ class LocalClinicalSurvivalBunker:
             "active_bunker_protocols": [
                 "PROTOCOL_GALA_12_PILLARS",
                 "PROTOCOL_SOFIA_NICU_SAFEGUARD",
-                "BIOFOAM_ROW_HMAC_INTEGRITY_SEAL",
+                "BIOFOAM_ROW_AND_5TABLE_MERKLE_SEAL",
                 "BIOENERGETIC_OT_POWER_ISLAND_MODE",
             ],
             "biofoam_integrity_audit": integrity_audit,
