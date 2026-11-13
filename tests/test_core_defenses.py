@@ -1,7 +1,8 @@
 """
-Project VALKYRJA — Automated Verification & Red-Team Hardening Test Suite
+Project VALKYRJA — Automated Verification & Red-Team v1.2 Elite Test Suite
 Verifies Protocols U.N.I.C.O.R.S.E., S.I.E.R.R.A., G.A.L.A., S.O.F.I.A.,
-Subroutine C.O.L.E., B.I.O.F.O.A.M. Row Seals, and Anti-Replay DDoS Filtering.
+Subroutine C.O.L.E., B.I.O.F.O.A.M. + 5-Table Merkle Seals, Single-Use JTI Nonces,
+Slowloris Tarpit Semaphores, and Kernel RAM Page Locking.
 """
 
 import importlib.util
@@ -106,20 +107,11 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         self.assertEqual(power_failover["load_shedding_action"], "HEMODYNAMIC_CENTRALIZATION_LOAD_SHEDDING_ACTIVE")
 
     def test_6_red_team_hardening_defenses(self) -> None:
-        """
-        Verifies Red-Team v1.1 Hardening:
-        1. Bounded FIFO IP cache prevents RAM exhaustion under spoofed IP floods.
-        2. Expired Selectin headers (>60s old) are blocked as Replay Attacks.
-        3. Zero-copy memoryview is active on the 32-byte RAM key (Subroutine C.O.L.E.).
-        4. B.I.O.F.O.A.M. Row-Level HMAC detects silent SQLite blood-group tampering.
-        """
-        # 1. Bounded FIFO IP Cache Cap (Cap at 50 IPs and flood with 120 spoofed IPs)
         bounded_filter = mod1.LymphaticDDoSSinkholeFilter(max_tracked_ips=50)
         for i in range(120):
             bounded_filter.inspect_incoming_packet(f"203.0.113.{i}", current_time=5000.0 + i)
         self.assertLessEqual(len(bounded_filter._last_request_timestamp), 50)
 
-        # 2. Anti-Replay Selectin Check (Token captured at t=1000s replayed at t=5000s -> BLOCKED)
         old_captured_token = mod1.LymphaticDDoSSinkholeFilter.generate_valid_selectin_header(current_time=1000.0)
         replay_attempt = bounded_filter.inspect_incoming_packet(
             "10.0.10.99", hla_selectin_header=old_captured_token, current_time=5000.0
@@ -127,19 +119,16 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         self.assertEqual(replay_attempt["routing_decision"], "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP")
         self.assertIn("REJECTED_SELECTIN_REPLAY_ATTACK", replay_attempt["reason"])
 
-        # 3. Zero-Copy memoryview & Subroutine C.O.L.E.
         key_mgr = mod2.EphemeralRAMKeyManager()
         self.assertTrue(key_mgr.zero_copy_memoryview_enforced)
         key_mgr.execute_crypto_shredding()
         self.assertIn("SUBROUTINE_COLE_SHREDDED", key_mgr.get_key_status_preview())
 
-        # 4. B.I.O.F.O.A.M. Row-Level SQLite Tamper Detection (Simulate hacker changing O- to AB+)
         bunker = mod4.LocalClinicalSurvivalBunker()
         bunker.seed_shadow_sync_snapshot()
         clean_audit = bunker.verify_bunker_row_integrity()
         self.assertTrue(clean_audit["biofoam_integrity_verified"])
 
-        # Sabotage patient PT-TRAUMA-992A blood type from 'O-' to 'AB+' directly in SQLite
         bunker.conn.execute(
             "UPDATE er_active_triage SET abo_rh = 'AB+' WHERE patient_token = 'PT-TRAUMA-992A'"
         )
@@ -151,6 +140,61 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         self.assertEqual(
             tamper_audit["clinical_safety_status"], "CRITICAL_IATROGENIC_TAMPER_ALERT_BLOCK_DISPLAY"
         )
+
+    def test_7_red_team_v1_2_elite_hardening(self) -> None:
+        """
+        Verifies Red-Team v1.2 Elite Hardening:
+        1. Intra-minute Selectin JTI Nonce Replay Block (same token reused 1ms later is dropped).
+        2. Distributed Slowloris Tarpit Concurrency Cap (blocks socket exhaustion).
+        3. Kernel RAM Page Lock telemetry (mlock / VirtualLock) on 32-byte key buffer.
+        4. 5-Table Merkle Manifest HMAC detects surgical SQL DELETE and cross-table lab tampering.
+        """
+        # 1. Intra-minute JTI Nonce Replay Attack (Reuse same valid token 1ms later -> BLOCKED)
+        ddos_filter = mod1.LymphaticDDoSSinkholeFilter(max_tarpit_slots=3)
+        single_use_token = mod1.LymphaticDDoSSinkholeFilter.generate_valid_selectin_header(current_time=3000.000)
+
+        first_use = ddos_filter.inspect_incoming_packet("10.0.10.20", single_use_token, current_time=3000.001)
+        self.assertEqual(first_use["routing_decision"], "ALLOW_EXPRESS_CLINICAL_LANE")
+
+        second_use_replay = ddos_filter.inspect_incoming_packet("10.0.10.20", single_use_token, current_time=3000.002)
+        self.assertEqual(second_use_replay["routing_decision"], "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP")
+        self.assertIn("DUPLICATE_NONCE_REPLAY", second_use_replay["reason"])
+
+        # 2. Distributed Slowloris Tarpit Capacity Cap (Cap at 3 concurrent tarpit slots)
+        self.assertTrue(ddos_filter.try_acquire_tarpit_slot())
+        self.assertTrue(ddos_filter.try_acquire_tarpit_slot())
+        self.assertTrue(ddos_filter.try_acquire_tarpit_slot())
+        self.assertFalse(ddos_filter.try_acquire_tarpit_slot())  # 4th slow bot is rejected to sinkhole
+        ddos_filter.release_tarpit_slot()
+
+        # 3. Kernel RAM Page Lock Telemetry (mlock / VirtualLock)
+        key_mgr = mod2.EphemeralRAMKeyManager()
+        self.assertTrue(
+            key_mgr.kernel_swap_lock_status.startswith(("KERNEL_", "VOLATILE_RAM_GUARD_ACTIVE"))
+        )
+
+        # 4A. Surgical SQL DELETE Attack Detection via 5-Table Merkle Manifest
+        bunker = mod4.LocalClinicalSurvivalBunker()
+        bunker.seed_shadow_sync_snapshot()
+        bunker.conn.execute("DELETE FROM er_active_triage WHERE patient_token = 'PT-CARDIO-441B'")
+        bunker.conn.commit()
+
+        delete_audit = bunker.verify_bunker_row_integrity()
+        self.assertFalse(delete_audit["biofoam_integrity_verified"])
+        self.assertFalse(delete_audit["merkle_5table_manifest_intact"])
+        self.assertIn("DELETED:PT-CARDIO-441B", delete_audit["tampered_patient_tokens"])
+
+        # 4B. Cross-Table Lab Panic Tampering Detection (Altering DKA Potassium in lab_panic_values)
+        bunker_lab = mod4.LocalClinicalSurvivalBunker()
+        bunker_lab.seed_shadow_sync_snapshot()
+        bunker_lab.conn.execute(
+            "UPDATE lab_panic_values SET critical_value = 'Glucose 28 | K+ 5.0' WHERE sample_barcode = 'LAB-88330'"
+        )
+        bunker_lab.conn.commit()
+
+        lab_audit = bunker_lab.verify_bunker_row_integrity()
+        self.assertFalse(lab_audit["biofoam_integrity_verified"])
+        self.assertFalse(lab_audit["merkle_5table_manifest_intact"])
 
 
 if __name__ == "__main__":
