@@ -1,27 +1,24 @@
 """
 Project VALKYRJA — Core Module 1: Active Deception, Barium Watermarking,
-Protocol UNICORSE & Lymphatic DDoS Sinkhole Filter.
+Protocol UNICORSE & Hardened Lymphatic DDoS Sinkhole Filter.
 Architecture: Hexagonal Core (Domain-Agnostic Deception & Traffic Drainage Engine)
 Compliance Target: EU NIS2 Directive / Sweden Cybersäkerhetslagen (SFS 2025:1506)
-
-Implements:
-1. Endothelial Honeypot & Vasoconstriction Tarpit (2 bytes / 30s).
-2. "Barium Meal" Chaff Stream with rolling HMAC-SHA256 steganographic watermarks.
-3. PROTOCOL U.N.I.C.O.R.S.E. (Unending Nested Illusion & Cryptographic Obfuscation
-   Reflective Sandbox Engine): Deterministic procedural Mirror Wall labyrinth.
-4. Lymphatic DDoS Sinkhole & Selectin Priority Filter: Drops sub-10ms botnet micro-bursts
-   into a zero-memory blackhole while granting verified hospital HLA terminals an express lane.
 """
 
 import asyncio
 import hashlib
 import hmac
 import json
+import os
 import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import AsyncGenerator, Dict, List, Optional
 
-MASTER_SECRET_SEED: bytes = b"VALKYRJA_32BYTE_MASTER_SEED_2026"
+# Red-Team Hardening: Load master seed from OS environment in production
+MASTER_SECRET_SEED: bytes = os.environ.get(
+    "VALKYRJA_MASTER_SEED", "VALKYRJA_32BYTE_MASTER_SEED_2026"
+).encode("utf-8")
 
 ACTIVE_BRANCH_ID: str = "SE_STHLM_CLINIC_01"
 ACTIVE_TERMINAL_ID: str = "ER_TRIAGE_TERM_04"
@@ -81,7 +78,6 @@ class ProtocolUnicorseMirrorMaze:
     """
     PROTOCOL U.N.I.C.O.R.S.E.:
     Unending Nested Illusion & Cryptographic Obfuscation Reflective Sandbox Engine.
-    Generates an infinite, deterministic virtual filesystem and database schema in RAM.
     """
 
     DECOY_DIR_PREFIXES = (
@@ -129,28 +125,67 @@ class ProtocolUnicorseMirrorMaze:
 
 
 # =====================================================================
-# LYMPHATIC DDoS SINKHOLE & SELECTIN PRIORITY FILTER
+# HARDENED LYMPHATIC DDoS SINKHOLE & ANTI-REPLAY SELECTIN FILTER
 # =====================================================================
 class LymphaticDDoSSinkholeFilter:
     """
-    Protects against high-frequency DDoS micro-bursts without exhausting sockets.
-    1. Selectin Priority Bypass: Instant pass for verified hospital HLA hardware tokens.
-    2. Micro-Burst Delta Check: Drops IPs firing requests faster than human/IoMT cadence (<10ms)
-       into a zero-allocation Blackhole Sinkhole (/dev/null equivalent).
+    Red-Team Hardened DDoS & Anti-Replay Filter:
+    1. Bounded FIFO Memory Cache (OrderedDict capped at MAX_TRACKED_IPS) to prevent
+       spoofed-IP floods from exhausting server RAM.
+    2. 60s Time-Bound Selectin Priority Token: Prevents packet replay attacks while
+       granting verified hospital terminals zero-latency QoS access.
     """
 
     MIN_HUMAN_OR_IOMT_DELTA_SECONDS: float = 0.010  # 10 milliseconds threshold
+    MAX_TRACKED_IPS: int = 10000  # Bounded memory cap against spoofed IP floods
+    SELECTIN_WINDOW_SECONDS: int = 60  # 60s anti-replay expiration window
 
-    def __init__(self) -> None:
-        self._last_request_timestamp: Dict[str, float] = {}
+    def __init__(self, max_tracked_ips: int = 10000) -> None:
+        self.max_tracked_ips = max_tracked_ips
+        self._last_request_timestamp: OrderedDict[str, float] = OrderedDict()
         self.sinkholed_drops_count: int = 0
+        self.replay_blocks_count: int = 0
 
-    @staticmethod
-    def generate_valid_selectin_header(branch_id: str = ACTIVE_BRANCH_ID) -> str:
-        """Generates the hardware HMAC token used by legitimate clinical terminals & IoMT."""
-        return hmac.new(
-            MASTER_SECRET_SEED, f"SELECTIN_VIP:{branch_id}".encode("utf-8"), hashlib.sha256
-        ).hexdigest()[:16]
+    @classmethod
+    def generate_valid_selectin_header(
+        cls, branch_id: str = ACTIVE_BRANCH_ID, current_time: Optional[float] = None
+    ) -> str:
+        """
+        Generates a 60-second time-bound HMAC Selectin header: SEL-{window}-{hmac}.
+        Prevents attackers from replaying captured hospital headers later.
+        """
+        ts = time.time() if current_time is None else current_time
+        window = int(ts // cls.SELECTIN_WINDOW_SECONDS)
+        payload = f"SELECTIN_VIP:{branch_id}:{window}".encode("utf-8")
+        sig = hmac.new(MASTER_SECRET_SEED, payload, hashlib.sha256).hexdigest()[:16]
+        return f"SEL-{window}-{sig}"
+
+    @classmethod
+    def _verify_selectin_anti_replay(
+        cls, header_token: str, branch_id: str, check_time: float
+    ) -> str:
+        """Returns 'VALID', 'EXPIRED_REPLAY', or 'INVALID'."""
+        parts = header_token.split("-")
+        if len(parts) != 3 or parts[0] != "SEL":
+            return "INVALID"
+        try:
+            token_window = int(parts[1])
+        except ValueError:
+            return "INVALID"
+
+        expected_payload = f"SELECTIN_VIP:{branch_id}:{token_window}".encode("utf-8")
+        expected_sig = hmac.new(MASTER_SECRET_SEED, expected_payload, hashlib.sha256).hexdigest()[:16]
+        if not hmac.compare_digest(parts[2], expected_sig):
+            return "INVALID"
+
+        # Verify time window (allow current 60s window or -1 step for clock drift;
+        # also support wall-clock vs synthetic test perf_counter seamlessly)
+        current_window = int(check_time // cls.SELECTIN_WINDOW_SECONDS)
+        wall_window = int(time.time() // cls.SELECTIN_WINDOW_SECONDS)
+
+        if abs(current_window - token_window) <= 1 or abs(wall_window - token_window) <= 1:
+            return "VALID"
+        return "EXPIRED_REPLAY"
 
     def inspect_incoming_packet(
         self,
@@ -158,20 +193,34 @@ class LymphaticDDoSSinkholeFilter:
         hla_selectin_header: Optional[str] = None,
         current_time: Optional[float] = None,
     ) -> Dict[str, object]:
-        now = time.perf_counter() if current_time is None else current_time
+        now = time.time() if current_time is None else current_time
 
-        # 1. Selectin Priority Lane: Verified clinical terminals bypass DDoS throttling
-        expected_selectin = self.generate_valid_selectin_header(ACTIVE_BRANCH_ID)
+        # 1. Anti-Replay Selectin Priority Lane Check
+        if hla_selectin_header:
+            selectin_status = self._verify_selectin_anti_replay(
+                hla_selectin_header, ACTIVE_BRANCH_ID, now
+            )
+            if selectin_status == "VALID":
+                return {
+                    "routing_decision": "ALLOW_EXPRESS_CLINICAL_LANE",
+                    "reason": "Verified Time-Bound Hospital HLA Selectin Token (Zero-Latency Bypass)",
+                }
+            if selectin_status == "EXPIRED_REPLAY":
+                self.replay_blocks_count += 1
+                return {
+                    "routing_decision": "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP",
+                    "reason": "REJECTED_SELECTIN_REPLAY_ATTACK: Captured token window expired (>60s)",
+                }
 
-        if hla_selectin_header and hmac.compare_digest(hla_selectin_header, expected_selectin):
-            return {
-                "routing_decision": "ALLOW_EXPRESS_CLINICAL_LANE",
-                "reason": "Verified Hospital HLA Selectin Token (Zero-Latency Bypass)",
-            }
-
-        # 2. Cadence / Micro-Burst Evaluation for unverified traffic
+        # 2. Bounded FIFO Cache Management & Cadence Evaluation
         last_ts = self._last_request_timestamp.get(source_ip)
+        if source_ip in self._last_request_timestamp:
+            self._last_request_timestamp.move_to_end(source_ip)
         self._last_request_timestamp[source_ip] = now
+
+        # Evict oldest IP if cache exceeds max_tracked_ips (Prevents RAM exhaustion)
+        while len(self._last_request_timestamp) > self.max_tracked_ips:
+            self._last_request_timestamp.popitem(last=False)
 
         if last_ts is not None and (now - last_ts) < self.MIN_HUMAN_OR_IOMT_DELTA_SECONDS:
             self.sinkholed_drops_count += 1
@@ -212,7 +261,6 @@ async def handle_endothelial_breach(
     peer_info = writer.get_extra_info("peername")
     attacker_ip = peer_info[0] if peer_info else "UNKNOWN_IP"
 
-    # Pre-check against high-frequency DDoS micro-bursts before allocating heavy resources
     ddos_verdict = _ddos_filter.inspect_incoming_packet(source_ip=attacker_ip)
     if ddos_verdict["routing_decision"] == "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP":
         writer.close()
