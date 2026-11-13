@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project VALKYRJA — M.J.O.L.N.I.R. Clinical & Cyber Telemetry HUD</title>
+  <style>
+    :root {
+      --bg-dark: #060b11;
+      --panel-bg: #0c1520;
+      --mjolnir-cyan: #00e5ff;
+      --vital-green: #00ff9d;
+      --amber-warn: #ffb300;
+      --crimson-omen: #ff1744;
+      --text-main: #e0f2fe;
+      --text-muted: #7dd3fc;
+      --border-glow: rgba(0, 229, 255, 0.35);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: "Consolas", "JetBrains Mono", "Courier New", monospace;
+      padding: 16px;
+      background-image: radial-gradient(circle at 50% 0%, #0f243c 0%, #060b11 75%);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid var(--border-glow);
+      background: var(--panel-bg);
+      padding: 14px 20px;
+      border-left: 5px solid var(--mjolnir-cyan);
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .title-block h1 {
+      font-size: 1.25rem;
+      color: var(--mjolnir-cyan);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .title-block p {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .omen-container {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .omen-gear {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      border: 4px dashed var(--vital-green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 0.7rem;
+      box-shadow: 0 0 15px rgba(0, 255, 157, 0.4);
+      animation: spin 14s linear infinite;
+      transition: all 0.4s ease;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .state-badge {
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-weight: bold;
+      background: rgba(0, 255, 157, 0.12);
+      border: 1px solid var(--vital-green);
+      color: var(--vital-green);
+    }
+    .controls-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    button {
+      background: #102030;
+      color: var(--mjolnir-cyan);
+      border: 1px solid var(--mjolnir-cyan);
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: 0.2s;
+    }
+    button:hover {
+      background: var(--mjolnir-cyan);
+      color: #000;
+      box-shadow: 0 0 12px var(--mjolnir-cyan);
+    }
+    button.btn-crimson {
+      border-color: var(--crimson-omen);
+      color: var(--crimson-omen);
+    }
+    button.btn-crimson:hover {
+      background: var(--crimson-omen);
+      color: #fff;
+      box-shadow: 0 0 14px var(--crimson-omen);
+    }
+    .grid-dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+    }
+    .hud-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-glow);
+      padding: 14px;
+      position: relative;
+    }
+    .hud-card h2 {
+      font-size: 0.92rem;
+      color: var(--mjolnir-cyan);
+      border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .kv-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      padding: 5px 0;
+      border-bottom: 1px dotted rgba(255, 255, 255, 0.08);
+    }
+    .val-ok { color: var(--vital-green); font-weight: bold; }
+    .val-warn { color: var(--amber-warn); font-weight: bold; }
+    .val-crit { color: var(--crimson-omen); font-weight: bold; }
+    .ram-hex-box {
+      background: #04080d;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      padding: 8px;
+      font-size: 0.74rem;
+      color: var(--vital-green);
+      word-break: break-all;
+      margin: 8px 0;
+    }
+    .terminal-log {
+      grid-column: 1 / -1;
+      background: #03060a;
+      border: 1px solid var(--border-glow);
+      padding: 12px;
+      height: 190px;
+      overflow-y: auto;
+      font-size: 0.76rem;
+      line-height: 1.45;
+      color: #a5f3fc;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="title-block">
+      <h1>🛡️ Project VALKYRJA — M.J.O.L.N.I.R. Telemetry HUD</h1>
+      <p>Multi-parameter Jurisdictional Offline Life-support & Network Integrity Radar | Sweden SFS 2025:1506 (NIS2)</p>
+    </div>
+    <div class="omen-container">
+      <div id="omenGear" class="omen-gear">O.M.E.N.</div>
+      <div>
+        <div id="systemStateBadge" class="state-badge">STATE: GREEN HOMEOSTASIS</div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">
+          Author: Dr. Luis Antonio Aburto (MD)
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls-bar">
+    <button onclick="simulateDDoSBurst()">1. Simulate DDoS Micro-Burst (&lt;10ms)</button>
+    <button onclick="simulateUnicorseMaze()">2. Trigger Protocol U.N.I.C.O.R.S.E. Maze</button>
+    <button class="btn-crimson" onclick="triggerSubroutineCole()">3. Tier-4 Breach: Subroutine C.O.L.E. + Bunker</button>
+    <button class="btn-crimson" onclick="simulateBiofoamTamper()">4. Test B.I.O.F.O.A.M. SQLite Tamper Guard</button>
+    <button onclick="resetHomeostasis()">↻ Reset to Green Homeostasis</button>
+  </div>
+
+  <div class="grid-dashboard">
+    <!-- CARD 1: PROTOCOL SIERRA & SUBROUTINE COLE -->
+    <div class="hud-card">
+      <h2><span>⚡ PROTOCOL S.I.E.R.R.A. & SUBROUTINE C.O.L.E.</span><span>32-BYTE RAM</span></h2>
+      <div class="kv-row"><span>Zero-Copy bytearray(32) Buffer:</span><span id="keyStatus" class="val-ok">ACTIVE IN VOLATILE RAM</span></div>
+      <div id="ramHexDisplay" class="ram-hex-box">0x8F4A2C91E7B03D65A1C498E2F07B53D19A8C4E2B6F01D3A57C9E2B4F8A01C3D5</div>
+      <div class="kv-row"><span>60s Verbal MHC-I Anti-Deepfake Seed:</span><span id="verbalSeed" class="val-ok">THROMBIN-COBALT-84</span></div>
+      <div class="kv-row"><span>ESC 0h/1h hs-Troponin Delta Lock:</span><span class="val-warn">18 → 64 ng/L (RULE-IN CATH LAB)</span></div>
+      <div class="kv-row"><span>Swedish Dual eGFR (CysC + Creat):</span><span class="val-warn">18.5 mL/min | K+ 6.9 (URGENT CRRT)</span></div>
+      <div class="kv-row"><span>DKA Insulin-Potassium Safety Lock:</span><span class="val-crit">K+ 2.9 mmol/L → HOLD IV INSULIN</span></div>
+    </div>
+
+    <!-- CARD 2: PROTOCOL GALA, BIOFOAM & 12 CLINICAL PILLARS -->
+    <div class="hud-card">
+      <h2><span>🏥 PROTOCOL G.A.L.A. & B.I.O.F.O.A.M. SEAL</span><span>12 PILLARS</span></h2>
+      <div class="kv-row"><span>Offline SQLite Failover Latency:</span><span class="val-ok">0.42 ms (Zero Clinical Ischemia)</span></div>
+      <div class="kv-row"><span>B.I.O.F.O.A.M. Row-Level HMAC Seal:</span><span id="biofoamStatus" class="val-ok">9/9 ROWS INTACT (HMAC VERIFIED)</span></div>
+      <div class="kv-row"><span>Adult ICU Mechanical Ventilation:</span><span class="val-ok">ΔP 12 cmH2O | Pplat 24 | P/F 145</span></div>
+      <div class="kv-row"><span>OR Transplant Cold Ischemia Timer:</span><span class="val-warn">Renal Graft 04h:12m (HLA DSA Neg)</span></div>
+      <div class="kv-row"><span>Hepatic Encephalopathy / Stroke Lock:</span><span class="val-warn">NH3 198 µmol/L | Apixaban DOAC Lock</span></div>
+    </div>
+
+    <!-- CARD 3: PROTOCOL SOFIA & JACK BIOENERGETIC DAEMON -->
+    <div class="hud-card">
+      <h2><span>👶 PROTOCOL S.O.F.I.A. & J.A.C.K. OT POWER</span><span>NICU / CRYO</span></h2>
+      <div class="kv-row"><span>Protocol S.O.F.I.A. NICU Dyad Lock:</span><span class="val-ok">SOFIA-DYAD-9A4F81C2E0B3 (VERIFIED)</span></div>
+      <div class="kv-row"><span>Neonate Micro-Dose & Incubator:</span><span class="val-ok">1,150g Locked | 36.7°C | Bili 215</span></div>
+      <div class="kv-row"><span>5-Tier Cryo Matrix (+22°C to -196°C):</span><span class="val-ok">O-Neg +3.6°C | LN2 Stem Cells -195.8°C</span></div>
+      <div class="kv-row"><span>J.A.C.K. 0ms Online UPS & OR IPS:</span><span id="upsStatus" class="val-ok">98.5% CHARGED (230V / 50.00 Hz)</span></div>
+      <div class="kv-row"><span>ATS Diesel Generator & Load Shedding:</span><span id="dieselStatus" class="val-ok">82.5h Autonomy (>72h Nordic Std)</span></div>
+    </div>
+
+    <!-- CARD 4: PROTOCOL UNICORSE & LYMPHATIC DDOS SINKHOLE -->
+    <div class="hud-card">
+      <h2><span>🌀 PROTOCOL U.N.I.C.O.R.S.E. & DDoS DRAIN</span><span>DECEPTION</span></h2>
+      <div class="kv-row"><span>Selectin Priority Hospital QoS Lane:</span><span class="val-ok">60s Anti-Replay HMAC Active</span></div>
+      <div class="kv-row"><span>Lymphatic Blackhole Sinkhole (&lt;10ms):</span><span id="ddosCount" class="val-ok">0 Micro-Bursts Dropped</span></div>
+      <div class="kv-row"><span>Active Rolling Barium Watermark:</span><span id="bariumToken" class="val-warn">TRC-498512-7E9A4C1B8D0F2E6A</span></div>
+      <div class="kv-row"><span>Infinite Mirror Labyrinth Depth:</span><span id="mazeDepth" class="val-ok">STANDBY (0 Bytes Disk Footprint)</span></div>
+      <div class="kv-row"><span>Swedish Regulatory Triad (MSB/IMY/IVO):</span><span id="nis2Status" class="val-ok">COMPLIANT (&lt;24h Early Warning Ready)</span></div>
+    </div>
+
+    <!-- LIVE TELEMETRY LOG -->
+    <div id="telemetryLog" class="terminal-log">
+      [M.J.O.L.N.I.R. HUD INITIALIZED] All 12 Acute Clinical Pillars, Protocol S.O.F.I.A., Protocol G.A.L.A., Protocol U.N.I.C.O.R.S.E., and Protocol S.I.E.R.R.A. online.<br/>
+      [RED-TEAM HARDENING v1.1] Zero-copy bytearray(32) key active. B.I.O.F.O.A.M. row HMAC seals verified. Selectin 60s anti-replay armed.
+    </div>
+  </div>
+
+  <script>
+    const words = ["THROMBIN","COBALT","BARIUM","ADRENALINE","KRYPTON","HEPARIN","OXYGEN","TITANIUM","FIBRIN","CORTEX"];
+    let ddosDrops = 0;
+
+    function logEvent(msg, color = "#a5f3fc") {
+      const box = document.getElementById("telemetryLog");
+      const ts = new Date().toISOString().split("T")[1].slice(0, 12);
+      box.innerHTML = `<span style="color:${color}">[${ts}] ${msg}</span><br/>` + box.innerHTML;
+    }
+
+    setInterval(() => {
+      const w1 = words[Math.floor(Math.random() * words.length)];
+      const w2 = words[Math.floor(Math.random() * words.length)];
+      const pin = String(Math.floor(Math.random() * 90 + 10));
+      document.getElementById("verbalSeed").textContent = `${w1}-${w2}-${pin}`;
+    }, 5000);
+
+    function simulateDDoSBurst() {
+      ddosDrops += 1420;
+      document.getElementById("ddosCount").textContent = `${ddosDrops.toLocaleString()} Sub-10ms Packets Sinkholed (/dev/null)`;
+      document.getElementById("ddosCount").className = "val-warn";
+      logEvent("[LYMPHATIC SINKHOLE] Botnet micro-burst (Δt = 0.8ms) detected from unverified IP. Diverted to /dev/null blackhole; Selectin VIP hospital lane unaffected.", "#ffb300");
+    }
+
+    function simulateUnicorseMaze() {
+      const omen = document.getElementById("omenGear");
+      const badge = document.getElementById("systemStateBadge");
+      omen.style.borderColor = "#ffb300";
+      omen.style.boxShadow = "0 0 18px #ffb300";
+      badge.textContent = "STATE: AMBER DECEPTION ACTIVE";
+      badge.style.color = "#ffb300";
+      badge.style.borderColor = "#ffb300";
+      document.getElementById("mazeDepth").textContent = "ACTIVE: /srv/karolinska_vault/cryo_ln2_9f4a/ (INFINITE RAM)";
+      document.getElementById("mazeDepth").className = "val-warn";
+      logEvent("[PROTOCOL U.N.I.C.O.R.S.E.] Intruder directory enumeration trapped in deterministic procedural Mirror Labyrinth. Rolling Barium watermark injected.", "#ffb300");
+    }
+
+    function triggerSubroutineCole() {
+      const omen = document.getElementById("omenGear");
+      const badge = document.getElementById("systemStateBadge");
+      omen.style.borderColor = "#ff1744";
+      omen.style.boxShadow = "0 0 24px #ff1744";
+      badge.textContent = "STATE: RED CRIMSON O.M.E.N. BUNKER";
+      badge.style.color = "#ff1744";
+      badge.style.borderColor = "#ff1744";
+
+      document.getElementById("keyStatus").textContent = "SUBROUTINE C.O.L.E. SHREDDED (0.004 ms)";
+      document.getElementById("keyStatus").className = "val-crit";
+      document.getElementById("ramHexDisplay").textContent = "0x0000000000000000000000000000000000000000000000000000000000000000";
+      document.getElementById("ramHexDisplay").style.color = "#ff1744";
+
+      document.getElementById("dieselStatus").textContent = "ISLAND MODE: NON-VITAL LOADS SHED (82.5h RED OUTLETS)";
+      document.getElementById("dieselStatus").className = "val-warn";
+
+      logEvent("[SUBROUTINE C.O.L.E. EXECUTED] Tier-4 Core Breach! 32-byte (256-bit) RAM key overwritten in-place with 0x00 in 0.004ms. Central vault mathematically indecipherable.", "#ff1744");
+      logEvent("[PROTOCOL G.A.L.A. & S.O.F.I.A. FAILOVER] External network severed. All 12 Clinical Pillars, NICU dyads & J.A.C.K. Diesel Generators running on local SQLite Bunker.", "#00ff9d");
+    }
+
+    function simulateBiofoamTamper() {
+      document.getElementById("biofoamStatus").textContent = "TAMPER BLOCKED: PT-TRAUMA-992A (ABO/Rh Altered!)";
+      document.getElementById("biofoamStatus").className = "val-crit";
+      logEvent("[B.I.O.F.O.A.M. CRITICAL ALERT] Unauthorized SQLite modification detected on PT-TRAUMA-992A (Attempted change: O- to AB+). Row HMAC mismatch! Display blocked to prevent lethal transfusion.", "#ff1744");
+    }
+
+    function resetHomeostasis() {
+      const omen = document.getElementById("omenGear");
+      const badge = document.getElementById("systemStateBadge");
+      omen.style.borderColor = "#00ff9d";
+      omen.style.boxShadow = "0 0 15px rgba(0,255,157,0.4)";
+      badge.textContent = "STATE: GREEN HOMEOSTASIS";
+      badge.style.color = "#00ff9d";
+      badge.style.borderColor = "#00ff9d";
+
+      document.getElementById("keyStatus").textContent = "ACTIVE IN VOLATILE RAM";
+      document.getElementById("keyStatus").className = "val-ok";
+      document.getElementById("ramHexDisplay").textContent = "0x8F4A2C91E7B03D65A1C498E2F07B53D19A8C4E2B6F01D3A57C9E2B4F8A01C3D5";
+      document.getElementById("ramHexDisplay").style.color = "#00ff9d";
+      document.getElementById("biofoamStatus").textContent = "9/9 ROWS INTACT (HMAC VERIFIED)";
+      document.getElementById("biofoamStatus").className = "val-ok";
+      document.getElementById("dieselStatus").textContent = "82.5h Autonomy (>72h Nordic Std)";
+      document.getElementById("dieselStatus").className = "val-ok";
+      document.getElementById("mazeDepth").textContent = "STANDBY (0 Bytes Disk Footprint)";
+      document.getElementById("mazeDepth").className = "val-ok";
+      logEvent("[HOMEOSTASIS RESTORED] New 32-byte RAM key provisioned. B.I.O.F.O.A.M. seals verified across all 12 clinical pillars.", "#00ff9d");
+    }
+  </script>
+</body>
+</html>
