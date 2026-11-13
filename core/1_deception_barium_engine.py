@@ -128,6 +128,58 @@ class ProtocolUnicorseMirrorMaze:
             "canary_token_injected": barium_token,
         }
 
+# =====================================================================
+# LYMPHATIC DDoS SINKHOLE & SELECTIN PRIORITY FILTER
+# =====================================================================
+class LymphaticDDoSSinkholeFilter:
+    """
+    Protects against high-frequency DDoS micro-bursts without exhausting sockets.
+    1. Selectin Priority Bypass: Instant pass for verified hospital HLA hardware tokens.
+    2. Micro-Burst Delta Check: Drops IPs firing requests faster than human/IoMT cadence (<10ms)
+       into a zero-allocation Blackhole Sinkhole (/dev/null equivalent).
+    """
+
+    MIN_HUMAN_OR_IOMT_DELTA_SECONDS: float = 0.010  # 10 milliseconds threshold
+
+    def __init__(self) -> None:
+        self._last_request_timestamp: Dict[str, float] = {}
+        self.sinkholed_drops_count: int = 0
+
+    def inspect_incoming_packet(
+        self,
+        source_ip: str,
+        hla_selectin_header: Optional[str] = None,
+        current_time: Optional[float] = None,
+    ) -> Dict[str, object]:
+        now = time.perf_counter() if current_time is None else current_time
+
+        # 1. Selectin Priority Lane: Verified clinical terminals bypass DDoS throttling
+        expected_selectin = hmac.new(
+            MASTER_SECRET_SEED, f"SELECTIN_VIP:{ACTIVE_BRANCH_ID}".encode("utf-8"), hashlib.sha256
+        ).hexdigest()[:16]
+
+        if hla_selectin_header and hmac.compare_digest(hla_selectin_header, expected_selectin):
+            return {
+                "routing_decision": "ALLOW_EXPRESS_CLINICAL_LANE",
+                "reason": "Verified Hospital HLA Selectin Token (Zero-Latency Bypass)",
+            }
+
+        # 2. Cadence / Micro-Burst Evaluation for unverified traffic
+        last_ts = self._last_request_timestamp.get(source_ip)
+        self._last_request_timestamp[source_ip] = now
+
+        if last_ts is not None and (now - last_ts) < self.MIN_HUMAN_OR_IOMT_DELTA_SECONDS:
+            self.sinkholed_drops_count += 1
+            return {
+                "routing_decision": "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP",
+                "delta_ms": round((now - last_ts) * 1000, 3),
+                "reason": "Sub-10ms DDoS micro-burst detected; discarded in /dev/null sinkhole",
+            }
+
+        return {
+            "routing_decision": "STANDARD_INSPECTION",
+            "reason": "Normal physiological/human request cadence",
+        }
 
 async def generate_barium_honey_data_stream(attacker_ip: str) -> AsyncGenerator[bytes, None]:
     """Streams synthetic records from RAM injected with the rolling Barium watermark."""
