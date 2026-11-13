@@ -1,12 +1,16 @@
 # 🛡️ Project VALKYRJA — Clinical Continuity & Active Cyber-Defense Engine
 
 [![Automated Clinical & Crypto CI](https://github.com/xlAreslx/project-valkyrja/actions/workflows/main.yml/badge.svg)](https://github.com/xlAreslx/project-valkyrja/actions)
+[![Live M.J.O.L.N.I.R. HUD](https://img.shields.io/badge/LIVE_HUD-M.J.O.L.N.I.R._Telemetry_Monitor-00e5ff.svg)](https://xlareslx.github.io/project-valkyrja/)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
 [![Architecture: Hexagonal](https://img.shields.io/badge/Architecture-Hexagonal%20%28Ports%20%26%20Adapters%29-success.svg)]()
-[![Cryptography: AES-256 / HMAC-SHA256](https://img.shields.io/badge/Cryptography-256--Bit%20RAM%20Key%20%7C%20HMAC--SHA256-indigo.svg)]()
+[![Cryptography: Zero-Copy 256-Bit RAM](https://img.shields.io/badge/Cryptography-Zero--Copy%20256--Bit%20RAM%20%7C%20HMAC--SHA256-indigo.svg)]()
 [![Compliance: EU NIS2 / SFS 2025:1506](https://img.shields.io/badge/Compliance-EU%20NIS2%20%7C%20Sweden%20SFS%202025%3A1506-005293.svg)]()
 
-> **Bio-inspired active deception, lymphatic DDoS sinkholing, ephemeral 32-byte RAM cryptography, OT backup power resilience, and offline point-of-care survival across 12 acute clinical workflows.**
+> **Bio-inspired active deception, lymphatic DDoS sinkholing, zero-copy 32-byte RAM cryptography, OT backup power resilience, and offline point-of-care survival across 12 acute clinical workflows.**
+
+🖥️ **Live Interactive Command Center (M.J.O.L.N.I.R. Telemetry HUD):**  
+👉 **[https://xlareslx.github.io/project-valkyrja/](https://xlareslx.github.io/project-valkyrja/)**
 
 ---
 
@@ -17,8 +21,19 @@
 Systemet är konstruerat av en legitimerad läkare inom akutsjukvård och mjukvaruutvecklare för att lösa ett livshotande problem inom modern **HealthTech**: *Hur isolerar vi ett pågående dataintrång på millisekunder utan att orsaka "klinisk eller bioenergetisk ischemi" (driftstopp eller strömbortfall som äventyrar patientsäkerheten)?*
 
 * **Efterlevnad av Cybersäkerhetslagen (SFS 2025:1506 / NIS2):** Automatiserad generering av tekniska incidentrapporter för tidig varning (<24 timmar till MSB / CERT-SE).
-* **Patientsäkerhet & Reservkraft vid nätverksbortfall (IVO / Lex Maria):** Lokalt krypterad *Fail-Safe Bunker* (SQLite) som säkerställer oavbruten tillgång (<1 ms latens) till 12 akuta kliniska flöden (inklusive kombinerat Cystatin C/Kreatinin eGFR vid hemodialys, ESC 0h/1h troponin-algoritm, mekanisk ventilation, organtransplantation och neonatal säkerhet), kryogen övervakning ($+22^\circ\text{C}$ till $-196^\circ\text{C}\text{ LN}_2$) samt autonom telemetri för **UPS-batterier och dieselreservkraftverk**.
-* **Dataskydd & Noll-exfiltrering (IMY / GDPR):** Aktiv vilseledning (*Protocol U.N.I.C.O.R.S.E.*), syntetisk *Honey-Data* med roterande kryptografiska vattenstämplar samt omedelbar radering av en 32-byte (256-bitars) RAM-nyckel (*Protocol S.I.E.R.R.A. Crypto-Shredding*) vid kritiska intrångsförsök.
+* **Patientsäkerhet & Reservkraft vid nätverksbortfall (IVO / Lex Maria):** Lokalt krypterad *Fail-Safe Bunker* (SQLite med **B.I.O.F.O.A.M.** radnivå-HMAC) som säkerställer oavbruten tillgång (<1 ms latens) till 12 akuta kliniska flöden (inklusive kombinerat Cystatin C/Kreatinin eGFR vid hemodialys, ESC 0h/1h troponin-algoritm, mekanisk ventilation, organtransplantation och neonatal säkerhet), kryogen övervakning ($+22^\circ\text{C}$ till $-196^\circ\text{C}\text{ LN}_2$) samt autonom telemetri för **UPS-batterier och dieselreservkraftverk**.
+* **Dataskydd & Noll-exfiltrering (IMY / GDPR):** Aktiv vilseledning (*Protocol U.N.I.C.O.R.S.E.*), syntetisk *Honey-Data* med roterande kryptografiska vattenstämplar samt omedelbar radering av en 32-byte (256-bitars) RAM-nyckel (*Subroutine C.O.L.E. Crypto-Shredding*) vid kritiska intrångsförsök.
+
+---
+
+## 🖥️ Live Interactive Demo: M.J.O.L.N.I.R. Multiparameter Telemetry HUD
+
+Experience the real-time clinical and cyber-defense state machine directly in your browser at **[https://xlareslx.github.io/project-valkyrja/](https://xlareslx.github.io/project-valkyrja/)**:
+
+* **`O.M.E.N.` Status Ring (*Operational Medical Emergency & Network-breach Indicator*):** Dynamic visual telemetry gear transitioning between **Green Homeostasis**, **Amber Active Deception**, and **Red Crimson O.M.E.N. Bunker** containment.
+* **`Subroutine C.O.L.E.` (*Cryptographic Overwrite & Local Erasure*):** Simulates sub-millisecond (`0.004 ms`) in-place `0x00` zero-filling of the 32-byte volatile RAM key buffer without leaving immutable copies on the Python heap.
+* **`B.I.O.F.O.A.M.` Seal (*Buffered In-memory Offline Failover & Organ-support Autonomous Matrix*):** Demonstrates real-time detection and blocking of silent SQLite iatrogenic tampering (e.g., unauthorized alteration of a trauma patient's blood group from `O-` to `AB+`).
+* **`J.A.C.K.` Bioenergetic Daemon (*Just-in-time Autonomous Clinical Keeper*):** Visualizes `0 ms` Online UPS bridging, `<10 s` ATS Diesel Generator takeover (`82.5h` autonomy), and automated non-vital load shedding.
 
 ---
 
@@ -31,27 +46,27 @@ Project VALKYRJA translates human survival physiology (**hemostasis, lymphatic d
 | **`Protocol S.O.F.I.A.`** | **S**afeguarded **O**ffline **F**ailover for **I**nfant & **A**cute-care | **NICU (UCIN), Nursery & Maternal Protection:** Generates offline-verifiable `HMAC-SHA256` tokens pairing Mother-Newborn wristbands during network blackouts, locks neonatal gram-weight micro-dosing, and guards obstetric *Code Mater* ($\text{MgSO}_4$ toxicity/Rh). |
 | **`Protocol G.A.L.A.`** | **G**uarded **A**utonomous **L**ocal-bunker **A**rchitecture | **12-Pillar Point-of-Care Survival, Cryo & OT Power Watchdog:** Maintains sub-5ms local SQLite continuity across ER, ICU, Hemodialysis, Transplant OR, a 5-tier Thermo-Cryogenic matrix ($+22^\circ\text{C}$ down to $-196^\circ\text{C}$), and isolated UPS/Diesel Generator load shedding. |
 | **`Protocol U.N.I.C.O.R.S.E.`** | **U**nending **N**ested **I**llusion & **C**ryptographic **O**bfuscation **R**eflective **S**andbox **E**ngine | **Infinite Mirror Labyrinth & Barium Watermarking:** Traps intruders exploring the system inside a deterministic, procedural RAM filesystem of infinite depth seeded with time-rotating steganographic watermarks (`TRC-XXXX`). |
-| **`Protocol S.I.E.R.R.A.`** | **S**ub-millisecond **I**n-memory **E**phemeral **R**AM **R**evocation & **A**udit | **32-Byte RAM Crypto-Shredding & Clinical Locks:** Overwrites the 256-bit master key in volatile RAM with `0x00` in **<1 ms** upon Tier-4 breaches, executes offline clinical safety locks (ESC 0h/1h, Swedish Cystatin C eGFR, DKA Insulin-$K^+$ lock), and compiles the NIS2 dossier. |
+| **`Protocol S.I.E.R.R.A.`** | **S**ub-millisecond **I**n-memory **E**phemeral **R**AM **R**evocation & **A**udit | **32-Byte RAM Crypto-Shredding & Clinical Locks:** Overwrites the 256-bit master key in volatile RAM with `0x00` in **<1 ms** upon Tier-4 breaches (*Subroutine C.O.L.E.*), executes offline clinical safety locks (ESC 0h/1h, Swedish Cystatin C eGFR, DKA Insulin-$K^+$ lock), and compiles the NIS2 dossier. |
 
 ---
 
 ## 🛡️ Defense Against DDoS & High-Frequency Saturation (Lymphatic Sinkhole)
 
-To prevent volumetric or application-layer **DDoS micro-bursts** from exhausting server sockets inside the Tarpit, `core/1_deception_barium_engine.py` implements a **Lymphatic Drainage & Selectin Priority Architecture**:
+To prevent volumetric or application-layer **DDoS micro-bursts** from exhausting server sockets inside the Tarpit, `core/1_deception_barium_engine.py` implements a **Hardened Lymphatic Drainage & Selectin Priority Architecture**:
 
-1. **Selectin Cryptographic Priority Lane (*Zero-Latency Clinical Bypass*):** Legitimate hospital terminals (ER workstations, ICU ventilators, blood bank scanners) attach a pre-shared hardware HMAC header (`X-Valkyrja-HLA-Token`). Validated in nanoseconds, authentic clinical traffic bypasses throttling via a dedicated QoS lane.
-2. **Inter-Arrival Cadence Filter ($\Delta t < 10\text{ ms}$) -> Bottomless Pit Sinkhole:** While human clinicians (>120 ms between actions) and IoMT sensors (rhythmic 1,000 ms telemetry) follow physiological cadences, DDoS bots fire bursts separated by fractions of a millisecond. Unverified sources violating the $\Delta t$ threshold are silently dropped into a zero-memory **Blackhole Sinkhole (`/dev/null`)** without allocating sockets or CPU responses.
+1. **60s Anti-Replay Selectin Priority Lane (*Zero-Latency Clinical Bypass*):** Legitimate hospital terminals attach a time-bound hardware HMAC header (`SEL-{window}-{hmac}`). Validated in nanoseconds and protected against packet replay (>60s expiration), authentic clinical traffic bypasses throttling via a dedicated QoS lane.
+2. **Bounded FIFO Cache & Cadence Filter ($\Delta t < 10\text{ ms}$) -> Bottomless Pit Sinkhole:** Tracks up to 10,000 active IPs in a bounded `OrderedDict` (preventing spoofed-IP RAM exhaustion) and drops unverified sub-10ms micro-bursts into a zero-memory **Blackhole Sinkhole (`/dev/null`)**.
 3. **Autonomous Local Failover:** If an external ISP pipe is completely saturated, local hospital branches operate autonomously on **Protocol G.A.L.A.** and **Protocol S.O.F.I.A.** with zero clinical downtime.
 
 ---
 
 ## ⚡ Bioenergetic OT Resilience: Electrical Grid, UPS & Backup Generators
 
-Modern hybrid cyberattacks target hospital **Building Management Systems (BMS) and Operational Technology (OT)** to disrupt electrical power or blind facility engineers during blackouts. Modeling **cellular ATP bioenergetics and hemodynamic centralization**, `adapters/4_local_clinical_bunker.py` monitors and protects critical hospital power infrastructure offline:
+Modeling **cellular ATP bioenergetics and hemodynamic centralization**, `adapters/4_local_clinical_bunker.py` monitors and protects critical hospital power infrastructure offline:
 
-* **0 ms Phosphocreatine Buffer (*Online Double-Conversion UPS & OR Isolated Power Systems*):** Monitors real-time battery autonomy (`%` and remaining hours) and Surgical Isolated Power Panels (IPS) feeding ICU mechanical ventilators, ECMO, infusion pumps, and NICU incubators during the transition gap before generators reach nominal voltage.
+* **0 ms Phosphocreatine Buffer (*Online Double-Conversion UPS & OR Isolated Power Systems*):** Monitors real-time battery autonomy and Surgical Isolated Power Panels (IPS) feeding ICU mechanical ventilators, ECMO, infusion pumps, and NICU incubators.
 * **<10 s Anaerobic Glycolysis Failover (*Automatic Transfer Switch [ATS] & Diesel Generators*):** Tracks ATS closure latency, 400V/50.0 Hz phase stability, and physical **Diesel Fuel Tank Reserves** converted into exact hours of autonomous hospital survival (72h+ Nordic civil preparedness standard).
-* **Hemodynamic Centralization (*Automated Non-Clinical Load Shedding*):** Executed via `evaluate_bioenergetic_power_and_shed_loads()`. If external grid power fails, the engine automatically sheds administrative offices, cafeterias, and non-essential HVAC to concentrate **100% of electrical capacity on Emergency Red Outlets** (ER Resuscitation, ICU, NICU, Operating Rooms, Hemodialysis, $-80^\circ\text{C}/-196^\circ\text{C}$ Cryogenics, and Local Bunker Servers).
+* **Hemodynamic Centralization (*Automated Non-Clinical Load Shedding*):** Executed via `evaluate_bioenergetic_power_and_shed_loads()`. Automatically sheds administrative offices, cafeterias, and non-essential HVAC to concentrate **100% of electrical capacity on Emergency Red Outlets**.
 
 ---
 
@@ -79,16 +94,18 @@ When external connectivity is severed to contain ransomware, `adapters/4_local_c
 ```text
 project-valkyrja/
 ├── .github/workflows/
-│   └── main.yml                           # Automated GitHub Actions CI (Unit Tests + Simulation)
+│   └── main.yml                           # Automated GitHub Actions CI (6/6 Red-Team Tests + Sim)
+├── docs/
+│   └── index.html                         # Live Interactive M.J.O.L.N.I.R. Telemetry HUD (GitHub Pages)
 ├── core/                                  # UNIVERSAL SECURITY & DECISION CORE (80%)
-│   ├── 1_deception_barium_engine.py       # Tarpit, Barium, Protocol UNICORSE & Lymphatic DDoS Filter
-│   ├── 2_clinical_nis2_flowchart.py       # Protocol SIERRA 32-Byte RAM Key & Clinical/NIS2 Locks
+│   ├── 1_deception_barium_engine.py       # Tarpit, Barium, Protocol UNICORSE & Hardened DDoS Filter
+│   ├── 2_clinical_nis2_flowchart.py       # Protocol SIERRA, Subroutine COLE 32B Key & Clinical Locks
 │   ├── 3_verbal_shield_mhc1.py            # 60s Rolling Verbal TOTP against AI Voice Cloning
 │   └── ports_future_expansions.py         # Hexagonal Protocol Interfaces (Shamir 3-of-5, Vaccines)
 ├── adapters/                              # DOMAIN-SPECIFIC ADAPTERS (20%)
-│   └── 4_local_clinical_bunker.py         # Protocols GALA & SOFIA Offline SQLite Bunker & Power Guard
+│   └── 4_local_clinical_bunker.py         # Protocols GALA & SOFIA, BIOFOAM HMAC & J.A.C.K. Power Guard
 ├── tests/                                 # AUTOMATED VERIFICATION SUITE
-│   └── test_core_defenses.py              # Unit tests for all 4 Named Protocols, DDoS & OT Power
+│   └── test_core_defenses.py              # 6/6 Unit & Red-Team Hardening Tests
 └── 5_valkyrja_dashboard_demo.py           # Unified Command Center & End-to-End Breach Simulator
 ```
 
@@ -98,13 +115,13 @@ project-valkyrja/
 
 ```bash
 # 1. Clone the repository
-git clone [https://github.com/xlAreslx/project-valkyrja.git](https://github.com/xlAreslx/project-valkyrja.git)
+git clone https://github.com/xlAreslx/project-valkyrja.git
 cd project-valkyrja
 
-# 2. Run the automated cryptographic, DDoS & clinical test suite (5/5 tests)
+# 2. Run the automated cryptographic, Red-Team & clinical test suite (6/6 tests)
 python -m unittest discover -s tests -p "test_*.py" -v
 
-# 3. Execute the full 4-stage Command Center & Swedish NIS2 Dossier simulation
+# 3. Execute the full 4-stage M.J.O.L.N.I.R. Command Center & Swedish NIS2 simulation
 python 5_valkyrja_dashboard_demo.py
 ```
 
