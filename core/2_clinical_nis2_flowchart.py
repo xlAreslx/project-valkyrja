@@ -5,13 +5,14 @@ Compliance Target: MSB (SFS 2025:1506 / NIS2), IMY (GDPR), IVO (Lex Maria Patien
 
 Implements:
 1. PROTOCOL S.I.E.R.R.A. & SUBROUTINE C.O.L.E. (Cryptographic Overwrite & Local Erasure):
-   - Zero-copy memoryview() over a mutable 32-byte (256-bit) bytearray in RAM so no immutable
-     key copies ever leak onto the Python heap prior to <1ms 0x00 Crypto-Shredding.
+   - Direct mutable bytearray(32) buffer access in RAM so no immutable 'bytes()' copies
+     ever leak onto the Python heap prior to <1ms 0x00 Crypto-Shredding.
 2. Acute Clinical Safety Locks (ESC 0h/1h Troponin, Swedish Cystatin C eGFR, DKA Insulin-K+ Lock).
 """
 
 import hashlib
 import hmac
+import json
 import os
 import time
 from dataclasses import asdict, dataclass
@@ -107,8 +108,8 @@ class ProtocolSierraClinicalLocks:
 class EphemeralRAMKeyManager:
     """
     Manages a mutable 32-byte (256-bit) key in volatile RAM under Protocol SIERRA.
-    Red-Team Hardening: Uses 'memoryview' directly over the bytearray so zero immutable
-    'bytes' copies are ever allocated on the Python heap.
+    Red-Team Hardening: Passes the mutable bytearray directly into C-level PBKDF2/HMAC
+    primitives without calling 'bytes()', preventing immutable key copies on the heap.
     """
 
     def __init__(self) -> None:
@@ -128,13 +129,12 @@ class EphemeralRAMKeyManager:
         nonce = os.urandom(16)
         plaintext_bytes = plaintext.encode("utf-8")
 
-        # Zero-copy memoryview directly into cryptographic primitives (No heap copies)
-        with memoryview(self._ram_key_buffer) as key_view:
-            keystream = hashlib.pbkdf2_hmac(
-                "sha256", key_view, nonce, iterations=1000, dklen=len(plaintext_bytes)
-            )
-            ciphertext = bytes(p ^ k for p, k in zip(plaintext_bytes, keystream))
-            auth_tag = hmac.new(key_view, nonce + ciphertext, hashlib.sha256).hexdigest()
+        # Pass mutable bytearray directly (satisfies hmac isinstance check with zero bytes() copy)
+        keystream = hashlib.pbkdf2_hmac(
+            "sha256", self._ram_key_buffer, nonce, iterations=1000, dklen=len(plaintext_bytes)
+        )
+        ciphertext = bytes(p ^ k for p, k in zip(plaintext_bytes, keystream))
+        auth_tag = hmac.new(self._ram_key_buffer, nonce + ciphertext, hashlib.sha256).hexdigest()
 
         return {"nonce_hex": nonce.hex(), "ciphertext_hex": ciphertext.hex(), "auth_tag_hmac": auth_tag}
 
@@ -145,15 +145,13 @@ class EphemeralRAMKeyManager:
         nonce = bytes.fromhex(encrypted_bundle["nonce_hex"])
         ciphertext = bytes.fromhex(encrypted_bundle["ciphertext_hex"])
 
-        with memoryview(self._ram_key_buffer) as key_view:
-            expected_tag = hmac.new(key_view, nonce + ciphertext, hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(expected_tag, encrypted_bundle["auth_tag_hmac"]):
-                raise ValueError("INTEGRITY-FAILURE: Ciphertext authentication tag mismatch.")
+        expected_tag = hmac.new(self._ram_key_buffer, nonce + ciphertext, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected_tag, encrypted_bundle["auth_tag_hmac"]):
+            raise ValueError("INTEGRITY-FAILURE: Ciphertext authentication tag mismatch.")
 
-            keystream = hashlib.pbkdf2_hmac(
-                "sha256", key_view, nonce, iterations=1000, dklen=len(ciphertext)
-            )
-
+        keystream = hashlib.pbkdf2_hmac(
+            "sha256", self._ram_key_buffer, nonce, iterations=1000, dklen=len(ciphertext)
+        )
         plaintext_bytes = bytes(c ^ k for c, k in zip(ciphertext, keystream))
         return plaintext_bytes.decode("utf-8")
 
@@ -164,7 +162,7 @@ class EphemeralRAMKeyManager:
         """
         start_ns = time.perf_counter_ns()
         with memoryview(self._ram_key_buffer) as key_view:
-            key_view[:] = b"\x00" * 32
+            key_view[:] = b"\x00" * len(self._ram_key_buffer)
         self.is_shredded = True
         return round((time.perf_counter_ns() - start_ns) / 1_000_000, 4)
 
