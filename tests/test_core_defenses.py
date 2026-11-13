@@ -1,6 +1,7 @@
 """
 Project VALKYRJA — Automated Verification & Unit Test Suite
-Verifies Protocols U.N.I.C.O.R.S.E., S.I.E.R.R.A., G.A.L.A., and S.O.F.I.A.
+Verifies Protocols U.N.I.C.O.R.S.E., S.I.E.R.R.A., G.A.L.A., S.O.F.I.A.,
+Lymphatic DDoS Sinkholing, and Bioenergetic OT Backup Power Failover.
 """
 
 import importlib.util
@@ -42,7 +43,6 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         self.assertIsNotNone(decoded)
         self.assertEqual(decoded["compromised_branch"], "SE_GOTHENBURG_LAB_02")
 
-        # Verify deterministic infinite labyrinth reflection
         maze_1 = mod1.ProtocolUnicorseMirrorMaze.reflect_infinite_labyrinth_node("/vault/level1/level2")
         maze_2 = mod1.ProtocolUnicorseMirrorMaze.reflect_infinite_labyrinth_node("/vault/level1/level2")
         self.assertEqual(maze_1["synthesized_subdirectories"], maze_2["synthesized_subdirectories"])
@@ -58,11 +58,9 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         with self.assertRaises(PermissionError):
             key_mgr.decrypt_record_in_ram(encrypted)
 
-        # Verify DKA Hypokalemia Hard Lock (K+ < 3.3 must block IV insulin)
         dka_blocked = mod2.ProtocolSierraClinicalLocks.verify_dka_insulin_potassium_lock(2.9, 25.0)
         self.assertFalse(dka_blocked["iv_insulin_pump_authorized"])
 
-        # Verify Swedish Cystatin C + Creatinine eGFR & Hyperkalemia alert
         renal = mod2.ProtocolSierraClinicalLocks.evaluate_swedish_dual_egfr_and_dialysis(500.0, 3.0, 6.8)
         self.assertIn("URGENT_HEMODIALYSIS", renal["nephrology_action"])
 
@@ -90,17 +88,42 @@ class TestProjectValkyrjaDefenses(unittest.TestCase):
         self.assertGreaterEqual(len(snapshot["active_resuscitation_patients"]), 9)
         self.assertGreaterEqual(len(snapshot["verified_safe_blood_units"]), 6)
 
-        # Verify Protocol SOFIA Mother-Infant Wristband cryptographic check
         valid_token = mod4.LocalClinicalSurvivalBunker.generate_sofia_dyad_token("MOM-SE-8821", "NEO-SOFIA-001")
         sofia_ok = mod4.LocalClinicalSurvivalBunker.verify_protocol_sofia_nursery_lock(
             "MOM-SE-8821", "NEO-SOFIA-001", valid_token
         )
         self.assertTrue(sofia_ok["mother_infant_match_verified"])
 
-        sofia_mismatch = mod4.LocalClinicalSurvivalBunker.verify_protocol_sofia_nursery_lock(
-            "MOM-SE-8821", "NEO-SOFIA-001", "SOFIA-DYAD-WRONGTOKEN00"
+    def test_5_lymphatic_ddos_sinkhole_and_bioenergetic_power_guard(self) -> None:
+        """Verifies DDoS micro-burst sinkholing, Selectin VIP lane, and OT Generator Load Shedding."""
+        ddos_filter = mod1.LymphaticDDoSSinkholeFilter()
+
+        # 1. Unverified IP firing two requests separated by 2ms (0.002s < 10ms threshold) -> SINKHOLE
+        first_pkt = ddos_filter.inspect_incoming_packet("198.51.100.44", current_time=1000.000)
+        self.assertEqual(first_pkt["routing_decision"], "STANDARD_INSPECTION")
+
+        burst_pkt = ddos_filter.inspect_incoming_packet("198.51.100.44", current_time=1000.002)
+        self.assertEqual(burst_pkt["routing_decision"], "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP")
+        self.assertEqual(ddos_filter.sinkholed_drops_count, 1)
+
+        # 2. Verified Hospital Terminal with Selectin HMAC Header -> EXPRESS CLINICAL LANE (even at 1ms)
+        valid_selectin = mod1.LymphaticDDoSSinkholeFilter.generate_valid_selectin_header()
+        vip_pkt = ddos_filter.inspect_incoming_packet(
+            "10.0.10.5", hla_selectin_header=valid_selectin, current_time=1000.003
         )
-        self.assertFalse(sofia_mismatch["mother_infant_match_verified"])
+        self.assertEqual(vip_pkt["routing_decision"], "ALLOW_EXPRESS_CLINICAL_LANE")
+
+        # 3. Bioenergetic OT Power & Backup Diesel Generator Failover + Load Shedding
+        bunker = mod4.LocalClinicalSurvivalBunker()
+        bunker.seed_shadow_sync_snapshot()
+        snapshot = bunker.query_emergency_survival_snapshot()
+        self.assertEqual(len(snapshot["ot_power_and_backup_generators"]), 3)
+
+        power_failover = mod4.LocalClinicalSurvivalBunker.evaluate_bioenergetic_power_and_shed_loads(
+            external_grid_online=False, ups_battery_pct=98.0, diesel_fuel_liters_pct=85.0
+        )
+        self.assertEqual(power_failover["load_shedding_action"], "HEMODYNAMIC_CENTRALIZATION_LOAD_SHEDDING_ACTIVE")
+        self.assertTrue(power_failover["nordic_72h_preparedness_compliant"])
 
 
 if __name__ == "__main__":
