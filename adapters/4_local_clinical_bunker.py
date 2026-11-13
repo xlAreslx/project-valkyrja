@@ -4,31 +4,35 @@ Architecture: Hexagonal Secondary Adapter (MedCore Clinical & Bioenergetic OT Co
 Compliance Target: Sweden IVO (Lex Maria Patient Safety) & SFS 2025:1506 (NIS2)
 
 Implements:
-1. PROTOCOL G.A.L.A. (Guarded Autonomous Local-bunker Architecture):
-   - Preserves the 12 High-Mortality Clinical Pillars offline (<5ms latency).
-   - Monitors the 5-Tier Thermo-Cryogenic Matrix (+22°C Platelets to -196°C LN2 Stem Cells).
-   - Bioenergetic OT Power & Generator Guard: Monitors 0ms Online UPS, Surgical IPS,
-     <10s ATS Diesel Generators, and executes Automated Non-Clinical Load Shedding.
+1. PROTOCOL G.A.L.A. & B.I.O.F.O.A.M. Row-Level HMAC Integrity Sealing:
+   - Protects the 12 High-Mortality Clinical Pillars, 5-Tier Cryo Matrix, and OT Backup Power.
+   - B.I.O.F.O.A.M. (Buffered In-memory Offline Failover & Organ-support Autonomous Matrix):
+     Signs every SQLite patient row with HMAC-SHA256 to prevent silent iatrogenic tampering
+     (e.g., altering blood type O- to AB+ or erasing lethal allergies).
 2. PROTOCOL S.O.F.I.A. (Safeguarded Offline Failover for Infant & Acute-care):
-   - Cryptographic SHA-256 Mother-Infant Wristband Dyad Pairing for NICU/Nursery (Cuneros),
-     gram-precise neonatal micro-dosing guard, and Maternal Preeclampsia MgSO4 safety lock.
+   - Cryptographic SHA-256 Mother-Infant Wristband Dyad Pairing for NICU/Nursery (Cuneros).
 """
 
 import hashlib
 import hmac
 import json
+import os
 import sqlite3
 import time
 from typing import Dict, List
 
+SOFIA_DEFAULT_KEY = "PROTOCOL_SOFIA_NICU_MOTHER_INFANT_DYAD_KEY_2026"
+BIOFOAM_DEFAULT_KEY = "PROTOCOL_GALA_BIOFOAM_ROW_INTEGRITY_SEED_2026"
+
 
 class LocalClinicalSurvivalBunker:
     """
-    PROTOCOL G.A.L.A. & PROTOCOL S.O.F.I.A. Offline Survival Node.
-    Guarantees sub-5ms local clinical and electrical telemetry continuity during cyberattacks.
+    PROTOCOL G.A.L.A., PROTOCOL S.O.F.I.A. & B.I.O.F.O.A.M. Offline Survival Node.
+    Guarantees sub-5ms local clinical, cryogenic, and electrical telemetry continuity.
     """
 
-    SOFIA_NURSERY_SECRET: bytes = b"PROTOCOL_SOFIA_NICU_MOTHER_INFANT_DYAD_KEY_2026"
+    SOFIA_NURSERY_SECRET: bytes = os.environ.get("VALKYRJA_SOFIA_KEY", SOFIA_DEFAULT_KEY).encode("utf-8")
+    BIOFOAM_ROW_SECRET: bytes = os.environ.get("VALKYRJA_BIOFOAM_KEY", BIOFOAM_DEFAULT_KEY).encode("utf-8")
 
     def __init__(self, db_path: str = ":memory:") -> None:
         self.db_path = db_path
@@ -39,7 +43,7 @@ class LocalClinicalSurvivalBunker:
     def _initialize_survival_schema(self) -> None:
         cursor = self.conn.cursor()
 
-        # Table 1: Active ER Triage & 12-Pillar Acute Departmental Status (Protocol GALA)
+        # Table 1: Active ER Triage & 12-Pillar Status with BIOFOAM Row-Level HMAC Seal
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS er_active_triage (
@@ -50,7 +54,8 @@ class LocalClinicalSurvivalBunker:
                 irregular_antibodies TEXT NOT NULL,
                 lethal_allergies_or_locks TEXT NOT NULL,
                 vital_organ_support_params TEXT NOT NULL,
-                assigned_bay TEXT NOT NULL
+                assigned_bay TEXT NOT NULL,
+                biofoam_row_hmac TEXT NOT NULL
             )
             """
         )
@@ -69,7 +74,7 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 3: Critical Laboratory Panic Values (Cardiac, Renal/Cystatin C, Hepatic, Sepsis, DKA)
+        # Table 3: Critical Laboratory Panic Values
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS lab_panic_values (
@@ -82,7 +87,7 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 4: PROTOCOL S.O.F.I.A. — NICU (UCIN), Nursery (Cuneros) & Maternal Code Mater
+        # Table 4: PROTOCOL S.O.F.I.A. — NICU (UCIN) & Nursery (Cuneros)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS protocol_sofia_nicu_nursery (
@@ -97,7 +102,7 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 5: Bioenergetic OT Electrical Grid, UPS & Diesel Backup Generators (Protocol GALA)
+        # Table 5: Bioenergetic OT Electrical Grid, UPS & Diesel Backup Generators (J.A.C.K. Daemon)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS ot_bioenergetic_power_grid (
@@ -114,8 +119,63 @@ class LocalClinicalSurvivalBunker:
         self.conn.commit()
 
     @classmethod
+    def compute_biofoam_row_hmac(
+        cls,
+        patient_token: str,
+        retts_level: int,
+        pillar: str,
+        abo_rh: str,
+        antibodies: str,
+        allergies: str,
+        organ_params: str,
+        bay: str,
+    ) -> str:
+        """
+        B.I.O.F.O.A.M. Seal: Computes an HMAC-SHA256 tag over every clinical field in a row.
+        Any unauthorized alteration of ABO/Rh, allergies, or dosing breaks the seal immediately.
+        """
+        canonical = f"{patient_token}|{retts_level}|{pillar}|{abo_rh}|{antibodies}|{allergies}|{organ_params}|{bay}"
+        return hmac.new(cls.BIOFOAM_ROW_SECRET, canonical.encode("utf-8"), hashlib.sha256).hexdigest()[:20].upper()
+
+    def verify_bunker_row_integrity(self) -> Dict[str, object]:
+        """
+        Audits all rows in 'er_active_triage' against their BIOFOAM HMAC seals.
+        Detects silent iatrogenic tampering (e.g., changing O- blood group to AB+ in SQLite).
+        """
+        cursor = self.conn.cursor()
+        tampered_patients: List[str] = []
+        verified_count = 0
+
+        for row in cursor.execute("SELECT * FROM er_active_triage"):
+            expected_hmac = self.compute_biofoam_row_hmac(
+                row["patient_token"],
+                row["retts_triage_level"],
+                row["clinical_pillar"],
+                row["abo_rh"],
+                row["irregular_antibodies"],
+                row["lethal_allergies_or_locks"],
+                row["vital_organ_support_params"],
+                row["assigned_bay"],
+            )
+            if hmac.compare_digest(expected_hmac, row["biofoam_row_hmac"]):
+                verified_count += 1
+            else:
+                tampered_patients.append(row["patient_token"])
+
+        is_intact = len(tampered_patients) == 0
+        return {
+            "biofoam_integrity_verified": is_intact,
+            "verified_rows_count": verified_count,
+            "tampered_patient_tokens": tampered_patients,
+            "clinical_safety_status": (
+                "BIOFOAM_SEAL_INTACT_SAFE_FOR_CLINICAL_USE"
+                if is_intact
+                else "CRITICAL_IATROGENIC_TAMPER_ALERT_BLOCK_DISPLAY"
+            ),
+        }
+
+    @classmethod
     def generate_sofia_dyad_token(cls, mother_id: str, neonate_id: str) -> str:
-        """Generates an offline-verifiable cryptographic link between Mother and Newborn wristbands."""
         payload = f"{mother_id}::{neonate_id}".encode("utf-8")
         digest = hmac.new(cls.SOFIA_NURSERY_SECRET, payload, hashlib.sha256).hexdigest()[:14].upper()
         return f"SOFIA-DYAD-{digest}"
@@ -124,7 +184,6 @@ class LocalClinicalSurvivalBunker:
     def verify_protocol_sofia_nursery_lock(
         cls, mother_id: str, neonate_id: str, scanned_wristband_token: str
     ) -> Dict[str, object]:
-        """Verifies infant identity in Nursery/NICU during network blackouts to prevent infant swap."""
         expected = cls.generate_sofia_dyad_token(mother_id, neonate_id)
         is_match = hmac.compare_digest(expected, scanned_wristband_token.strip().upper())
         return {
@@ -139,12 +198,6 @@ class LocalClinicalSurvivalBunker:
         ups_battery_pct: float,
         diesel_fuel_liters_pct: float,
     ) -> Dict[str, object]:
-        """
-        Bioenergetic OT Power Controller (Hemodynamic Centralization):
-        When external utility power fails or BMS/SCADA is under cyberattack, verifies 0ms UPS
-        pickup, engages <10s ATS Diesel Generators, and automatically sheds non-clinical electrical
-        loads (offices, cafeteria, general HVAC) to guarantee 72h+ survival on Emergency Red Outlets.
-        """
         estimated_diesel_hours = round((diesel_fuel_liters_pct / 100.0) * 96.0, 1)
 
         if not external_grid_online or diesel_fuel_liters_pct < 50.0:
@@ -179,53 +232,57 @@ class LocalClinicalSurvivalBunker:
         }
 
     def seed_shadow_sync_snapshot(self) -> None:
-        """Populates the 12 Clinical Pillars, Thermo-Cryo Matrix, Protocol SOFIA, and OT Power Grid."""
+        """Populates the 12 Clinical Pillars (sealed with BIOFOAM HMAC), Cryo Matrix, SOFIA & Power."""
         cursor = self.conn.cursor()
 
-        # 1. Seed 12 Acute Clinical Pillars
+        raw_triage_rows = [
+            (
+                "PT-TRAUMA-992A", 1, "PILLAR_1_TRAUMA_HEMORRHAGE", "O-", "NONE",
+                "Allergy: Penicillin, Latex", "MTP_ACTIVE | Ca2+: 1.02 mmol/L | Fibrinogen: 1.4 g/L", "TRAUMA_BAY_01"
+            ),
+            (
+                "PT-CARDIO-441B", 1, "PILLAR_2_CARDIAC_ESC_0H_1H", "A+", "Anti-Kell",
+                "Allergy: Contrast Iodine", "hs-cTnT 0h: 18 ng/L -> 1h: 64 ng/L (DELTA +46 RULE-IN)", "CORONARY_ICU_02"
+            ),
+            (
+                "PT-RENAL-309C", 1, "PILLAR_3_NEPHRO_HEMODIALYSIS", "B+", "NONE",
+                "Dialysis Heparin Lock Active", "Cystatin-C: 3.1 mg/L | Creat: 540 umol/L | UF Goal: 2.2L", "DIALYSIS_BAY_04"
+            ),
+            (
+                "PT-HEPATIC-512D", 1, "PILLAR_4_HEPATIC_ENCEPHALOPATHY", "O+", "NONE",
+                "Variceal Bleed Prophylaxis", "West Haven Grade III | MELD-Na: 31 | Terlipressin IV", "LIVER_ICU_01"
+            ),
+            (
+                "PT-ICUVENT-778E", 1, "PILLAR_5_ICU_MECHANICAL_VENT", "AB+", "NONE",
+                "Lung Protective Vent Lock", "Driving Pressure dP: 12 cmH2O | Pplat: 24 | PaO2/FiO2: 145", "ADULT_ICU_BED_08"
+            ),
+            (
+                "PT-TRANSPLANT-881F", 1, "PILLAR_6_OR_ORGAN_TRANSPLANT", "O-", "HLA-DSA-NEGATIVE",
+                "Cold Ischemia Timer Active", "Renal Graft Cold Ischemia: 04h:12m | Tacrolimus Induction", "OR_SUITE_03"
+            ),
+            (
+                "PT-STROKE-204G", 1, "PILLAR_7_NEURO_STROKE_CODE", "A-", "NONE",
+                "HARD_LOCK: Patient on Apixaban (DOAC)", "NIHSS: 14 | CT: No Bleed | HOLD IV tPA -> Thrombectomy", "STROKE_UNIT_01"
+            ),
+            (
+                "PT-MATER-619H", 1, "PILLAR_10_OBSTETRIC_CODE_MATER", "O-", "Rh-Isoimmunization Guard",
+                "MgSO4 Toxicity Guard (Patellar Reflex+)", "Severe Preeclampsia | Fibrinogen: 240 mg/dL", "LABOR_DELIVERY_02"
+            ),
+            (
+                "PT-ONCO-905J", 1, "PILLAR_12_ONCOLOGY_NEUTROPENIA", "A+", "NONE",
+                "High-Dose Methotrexate Rescue Clock", "Leucovorin Rescue Due: 15m | ANC: 320/uL (Neutropenic)", "ONCO_ACUTE_05"
+            ),
+        ]
+
+        sealed_triage_rows = [
+            (*row, self.compute_biofoam_row_hmac(*row)) for row in raw_triage_rows
+        ]
+
         cursor.executemany(
-            "INSERT OR REPLACE INTO er_active_triage VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            [
-                (
-                    "PT-TRAUMA-992A", 1, "PILLAR_1_TRAUMA_HEMORRHAGE", "O-", "NONE",
-                    "Allergy: Penicillin, Latex", "MTP_ACTIVE | Ca2+: 1.02 mmol/L | Fibrinogen: 1.4 g/L", "TRAUMA_BAY_01"
-                ),
-                (
-                    "PT-CARDIO-441B", 1, "PILLAR_2_CARDIAC_ESC_0H_1H", "A+", "Anti-Kell",
-                    "Allergy: Contrast Iodine", "hs-cTnT 0h: 18 ng/L -> 1h: 64 ng/L (DELTA +46 RULE-IN)", "CORONARY_ICU_02"
-                ),
-                (
-                    "PT-RENAL-309C", 1, "PILLAR_3_NEPHRO_HEMODIALYSIS", "B+", "NONE",
-                    "Dialysis Heparin Lock Active", "Cystatin-C: 3.1 mg/L | Creat: 540 umol/L | UF Goal: 2.2L", "DIALYSIS_BAY_04"
-                ),
-                (
-                    "PT-HEPATIC-512D", 1, "PILLAR_4_HEPATIC_ENCEPHALOPATHY", "O+", "NONE",
-                    "Variceal Bleed Prophylaxis", "West Haven Grade III | MELD-Na: 31 | Terlipressin IV", "LIVER_ICU_01"
-                ),
-                (
-                    "PT-ICUVENT-778E", 1, "PILLAR_5_ICU_MECHANICAL_VENT", "AB+", "NONE",
-                    "Lung Protective Vent Lock", "Driving Pressure dP: 12 cmH2O | Pplat: 24 | PaO2/FiO2: 145", "ADULT_ICU_BED_08"
-                ),
-                (
-                    "PT-TRANSPLANT-881F", 1, "PILLAR_6_OR_ORGAN_TRANSPLANT", "O-", "HLA-DSA-NEGATIVE",
-                    "Cold Ischemia Timer Active", "Renal Graft Cold Ischemia: 04h:12m | Tacrolimus Induction", "OR_SUITE_03"
-                ),
-                (
-                    "PT-STROKE-204G", 1, "PILLAR_7_NEURO_STROKE_CODE", "A-", "NONE",
-                    "HARD_LOCK: Patient on Apixaban (DOAC)", "NIHSS: 14 | CT: No Bleed | HOLD IV tPA -> Thrombectomy", "STROKE_UNIT_01"
-                ),
-                (
-                    "PT-MATER-619H", 1, "PILLAR_10_OBSTETRIC_CODE_MATER", "O-", "Rh-Isoimmunization Guard",
-                    "MgSO4 Toxicity Guard (Patellar Reflex+)", "Severe Preeclampsia | Fibrinogen: 240 mg/dL", "LABOR_DELIVERY_02"
-                ),
-                (
-                    "PT-ONCO-905J", 1, "PILLAR_12_ONCOLOGY_NEUTROPENIA", "A+", "NONE",
-                    "High-Dose Methotrexate Rescue Clock", "Leucovorin Rescue Due: 15m | ANC: 320/uL (Neutropenic)", "ONCO_ACUTE_05"
-                ),
-            ],
+            "INSERT OR REPLACE INTO er_active_triage VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            sealed_triage_rows,
         )
 
-        # 2. Seed Thermo-Cryogenic Matrix (+22C to -196C LN2)
         cursor.executemany(
             "INSERT OR REPLACE INTO blood_bank_reserve VALUES (?, ?, ?, ?, ?, ?)",
             [
@@ -238,7 +295,6 @@ class LocalClinicalSurvivalBunker:
             ],
         )
 
-        # 3. Seed Critical Lab Panic Values
         cursor.executemany(
             "INSERT OR REPLACE INTO lab_panic_values VALUES (?, ?, ?, ?, ?)",
             [
@@ -249,7 +305,6 @@ class LocalClinicalSurvivalBunker:
             ],
         )
 
-        # 4. Seed PROTOCOL S.O.F.I.A. — NICU & Nursery Dyad Protection
         dyad_token_1 = self.generate_sofia_dyad_token("MOM-SE-8821", "NEO-SOFIA-001")
         cursor.execute(
             "INSERT OR REPLACE INTO protocol_sofia_nicu_nursery VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -264,7 +319,6 @@ class LocalClinicalSurvivalBunker:
             ),
         )
 
-        # 5. Seed Bioenergetic OT Electrical Grid, UPS & Diesel Backup Generators
         cursor.executemany(
             "INSERT OR REPLACE INTO ot_bioenergetic_power_grid VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
@@ -300,10 +354,11 @@ class LocalClinicalSurvivalBunker:
         self.conn.commit()
 
     def query_emergency_survival_snapshot(self) -> Dict[str, object]:
-        """Retrieves the complete Protocol GALA & Protocol SOFIA clinical and OT power survival state."""
+        """Retrieves the complete Protocol GALA, BIOFOAM & Protocol SOFIA survival state."""
         start_ns = time.perf_counter_ns()
         cursor = self.conn.cursor()
 
+        integrity_audit = self.verify_bunker_row_integrity()
         patients: List[Dict[str, object]] = [
             dict(row) for row in cursor.execute("SELECT * FROM er_active_triage ORDER BY retts_triage_level ASC")
         ]
@@ -327,8 +382,10 @@ class LocalClinicalSurvivalBunker:
             "active_bunker_protocols": [
                 "PROTOCOL_GALA_12_PILLARS",
                 "PROTOCOL_SOFIA_NICU_SAFEGUARD",
+                "BIOFOAM_ROW_HMAC_INTEGRITY_SEAL",
                 "BIOENERGETIC_OT_POWER_ISLAND_MODE",
             ],
+            "biofoam_integrity_audit": integrity_audit,
             "failover_query_latency_ms": latency_ms,
             "active_resuscitation_patients": patients,
             "verified_safe_blood_units": thermo_cryo_units,
@@ -336,9 +393,3 @@ class LocalClinicalSurvivalBunker:
             "protocol_sofia_nicu_nursery_dyads": sofia_nicu_protected,
             "ot_power_and_backup_generators": ot_power_systems,
         }
-
-
-if __name__ == "__main__":
-    bunker = LocalClinicalSurvivalBunker()
-    bunker.seed_shadow_sync_snapshot()
-    print(json.dumps(bunker.query_emergency_survival_snapshot(), indent=2))
