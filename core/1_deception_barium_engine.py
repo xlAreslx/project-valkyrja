@@ -1,6 +1,6 @@
 """
 Project VALKYRJA — Core Module 1: Active Deception, Barium Watermarking,
-Protocol UNICORSE & Hardened Lymphatic DDoS Sinkhole Filter.
+Protocol UNICORSE & Hardened Lymphatic DDoS Sinkhole Filter (Red-Team v1.2).
 Architecture: Hexagonal Core (Domain-Agnostic Deception & Traffic Drainage Engine)
 Compliance Target: EU NIS2 Directive / Sweden Cybersäkerhetslagen (SFS 2025:1506)
 """
@@ -15,7 +15,6 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import AsyncGenerator, Dict, List, Optional
 
-# Red-Team Hardening: Load master seed from OS environment in production
 MASTER_SECRET_SEED: bytes = os.environ.get(
     "VALKYRJA_MASTER_SEED", "VALKYRJA_32BYTE_MASTER_SEED_2026"
 ).encode("utf-8")
@@ -125,67 +124,102 @@ class ProtocolUnicorseMirrorMaze:
 
 
 # =====================================================================
-# HARDENED LYMPHATIC DDoS SINKHOLE & ANTI-REPLAY SELECTIN FILTER
+# HARDENED LYMPHATIC DDoS SINKHOLE & SINGLE-USE JTI SELECTIN FILTER
 # =====================================================================
 class LymphaticDDoSSinkholeFilter:
     """
-    Red-Team Hardened DDoS & Anti-Replay Filter:
-    1. Bounded FIFO Memory Cache (OrderedDict capped at MAX_TRACKED_IPS) to prevent
-       spoofed-IP floods from exhausting server RAM.
-    2. 60s Time-Bound Selectin Priority Token: Prevents packet replay attacks while
-       granting verified hospital terminals zero-latency QoS access.
+    Red-Team v1.2 Hardened DDoS, Anti-Replay & Slowloris Filter:
+    1. Bounded FIFO Memory Cache (OrderedDict capped at MAX_TRACKED_IPS).
+    2. 60s Time-Bound + Single-Use Nonce (JTI) Selectin Token: Blocks both expired (>60s)
+       and intra-minute replayed hospital headers immediately.
+    3. Distributed Slowloris Tarpit Cap (MAX_TARPIT_CONCURRENCY = 256): Prevents socket exhaustion.
     """
 
-    MIN_HUMAN_OR_IOMT_DELTA_SECONDS: float = 0.010  # 10 milliseconds threshold
-    MAX_TRACKED_IPS: int = 10000  # Bounded memory cap against spoofed IP floods
-    SELECTIN_WINDOW_SECONDS: int = 60  # 60s anti-replay expiration window
+    MIN_HUMAN_OR_IOMT_DELTA_SECONDS: float = 0.010
+    MAX_TRACKED_IPS: int = 10000
+    MAX_TRACKED_NONCES: int = 10000
+    SELECTIN_WINDOW_SECONDS: int = 60
+    MAX_TARPIT_CONCURRENCY: int = 256
 
-    def __init__(self, max_tracked_ips: int = 10000) -> None:
+    def __init__(self, max_tracked_ips: int = 10000, max_tarpit_slots: int = 256) -> None:
         self.max_tracked_ips = max_tracked_ips
+        self.max_tarpit_slots = max_tarpit_slots
+        self.active_tarpit_connections: int = 0
+        self._tarpit_semaphore = asyncio.Semaphore(max_tarpit_slots)
         self._last_request_timestamp: OrderedDict[str, float] = OrderedDict()
+        self._consumed_selectin_nonces: OrderedDict[str, float] = OrderedDict()
         self.sinkholed_drops_count: int = 0
         self.replay_blocks_count: int = 0
 
+    def try_acquire_tarpit_slot(self) -> bool:
+        """
+        Guards against Distributed Slowloris socket exhaustion.
+        Allows at most `max_tarpit_slots` concurrent tarpit holds; drops excess into sinkhole.
+        """
+        if self.active_tarpit_connections >= self.max_tarpit_slots:
+            self.sinkholed_drops_count += 1
+            return False
+        self.active_tarpit_connections += 1
+        return True
+
+    def release_tarpit_slot(self) -> None:
+        if self.active_tarpit_connections > 0:
+            self.active_tarpit_connections -= 1
+
     @classmethod
     def generate_valid_selectin_header(
-        cls, branch_id: str = ACTIVE_BRANCH_ID, current_time: Optional[float] = None
+        cls,
+        branch_id: str = ACTIVE_BRANCH_ID,
+        current_time: Optional[float] = None,
+        nonce: Optional[str] = None,
     ) -> str:
         """
-        Generates a 60-second time-bound HMAC Selectin header: SEL-{window}-{hmac}.
-        Prevents attackers from replaying captured hospital headers later.
+        Generates a 60-second time-bound + Single-Use Nonce (JTI) HMAC Selectin header:
+        Format: SEL-{window}-{nonce}-{hmac}
         """
         ts = time.time() if current_time is None else current_time
         window = int(ts // cls.SELECTIN_WINDOW_SECONDS)
-        payload = f"SELECTIN_VIP:{branch_id}:{window}".encode("utf-8")
+        unique_nonce = nonce if nonce is not None else os.urandom(6).hex()
+        payload = f"SELECTIN_VIP:{branch_id}:{window}:{unique_nonce}".encode("utf-8")
         sig = hmac.new(MASTER_SECRET_SEED, payload, hashlib.sha256).hexdigest()[:16]
-        return f"SEL-{window}-{sig}"
+        return f"SEL-{window}-{unique_nonce}-{sig}"
 
-    @classmethod
     def _verify_selectin_anti_replay(
-        cls, header_token: str, branch_id: str, check_time: float
+        self, header_token: str, branch_id: str, check_time: float
     ) -> str:
-        """Returns 'VALID', 'EXPIRED_REPLAY', or 'INVALID'."""
+        """Returns 'VALID', 'EXPIRED_REPLAY', 'DUPLICATE_NONCE_REPLAY', or 'INVALID'."""
         parts = header_token.split("-")
-        if len(parts) != 3 or parts[0] != "SEL":
+        if len(parts) != 4 or parts[0] != "SEL":
             return "INVALID"
         try:
             token_window = int(parts[1])
         except ValueError:
             return "INVALID"
 
-        expected_payload = f"SELECTIN_VIP:{branch_id}:{token_window}".encode("utf-8")
+        nonce = parts[2]
+        provided_sig = parts[3]
+
+        expected_payload = f"SELECTIN_VIP:{branch_id}:{token_window}:{nonce}".encode("utf-8")
         expected_sig = hmac.new(MASTER_SECRET_SEED, expected_payload, hashlib.sha256).hexdigest()[:16]
-        if not hmac.compare_digest(parts[2], expected_sig):
+        if not hmac.compare_digest(provided_sig, expected_sig):
             return "INVALID"
 
-        # Verify time window (allow current 60s window or -1 step for clock drift;
-        # also support wall-clock vs synthetic test perf_counter seamlessly)
-        current_window = int(check_time // cls.SELECTIN_WINDOW_SECONDS)
-        wall_window = int(time.time() // cls.SELECTIN_WINDOW_SECONDS)
+        current_window = int(check_time // self.SELECTIN_WINDOW_SECONDS)
+        wall_window = int(time.time() // self.SELECTIN_WINDOW_SECONDS)
 
-        if abs(current_window - token_window) <= 1 or abs(wall_window - token_window) <= 1:
-            return "VALID"
-        return "EXPIRED_REPLAY"
+        if not (abs(current_window - token_window) <= 1 or abs(wall_window - token_window) <= 1):
+            return "EXPIRED_REPLAY"
+
+        # Single-Use Nonce (JTI) Anti-Replay Check within the active 60s window
+        nonce_key = f"{token_window}:{nonce}"
+        if nonce_key in self._consumed_selectin_nonces:
+            return "DUPLICATE_NONCE_REPLAY"
+
+        self._consumed_selectin_nonces[nonce_key] = check_time
+        while len(self._consumed_selectin_nonces) > self.MAX_TRACKED_NONCES:
+            self._consumed_selectin_nonces.popitem(last=False)
+
+        return "VALID"
 
     def inspect_incoming_packet(
         self,
@@ -195,7 +229,7 @@ class LymphaticDDoSSinkholeFilter:
     ) -> Dict[str, object]:
         now = time.time() if current_time is None else current_time
 
-        # 1. Anti-Replay Selectin Priority Lane Check
+        # 1. Anti-Replay Selectin Priority Lane Check (Window + Single-Use JTI Nonce)
         if hla_selectin_header:
             selectin_status = self._verify_selectin_anti_replay(
                 hla_selectin_header, ACTIVE_BRANCH_ID, now
@@ -203,13 +237,13 @@ class LymphaticDDoSSinkholeFilter:
             if selectin_status == "VALID":
                 return {
                     "routing_decision": "ALLOW_EXPRESS_CLINICAL_LANE",
-                    "reason": "Verified Time-Bound Hospital HLA Selectin Token (Zero-Latency Bypass)",
+                    "reason": "Verified Single-Use Hospital HLA Selectin Token (Zero-Latency Bypass)",
                 }
-            if selectin_status == "EXPIRED_REPLAY":
+            if selectin_status in ("EXPIRED_REPLAY", "DUPLICATE_NONCE_REPLAY"):
                 self.replay_blocks_count += 1
                 return {
                     "routing_decision": "LYMPHATIC_BLACKHOLE_SINKHOLE_DROP",
-                    "reason": "REJECTED_SELECTIN_REPLAY_ATTACK: Captured token window expired (>60s)",
+                    "reason": f"REJECTED_SELECTIN_REPLAY_ATTACK: {selectin_status}",
                 }
 
         # 2. Bounded FIFO Cache Management & Cadence Evaluation
@@ -218,7 +252,6 @@ class LymphaticDDoSSinkholeFilter:
             self._last_request_timestamp.move_to_end(source_ip)
         self._last_request_timestamp[source_ip] = now
 
-        # Evict oldest IP if cache exceeds max_tracked_ips (Prevents RAM exhaustion)
         while len(self._last_request_timestamp) > self.max_tracked_ips:
             self._last_request_timestamp.popitem(last=False)
 
@@ -284,12 +317,19 @@ async def handle_endothelial_breach(
             writer.write((json.dumps(maze_node, indent=2) + "\n").encode("utf-8"))
             await writer.drain()
         else:
-            writer.write(b"HTTP/1.1 100 Continue\r\n")
-            await writer.drain()
-            while True:
-                await asyncio.sleep(30)
-                writer.write(b"..\r\n")
+            # Guard Tarpit with bounded concurrency semaphore against Distributed Slowloris
+            if not _ddos_filter.try_acquire_tarpit_slot():
+                writer.close()
+                return
+            try:
+                writer.write(b"HTTP/1.1 100 Continue\r\n")
                 await writer.drain()
+                while True:
+                    await asyncio.sleep(30)
+                    writer.write(b"..\r\n")
+                    await writer.drain()
+            finally:
+                _ddos_filter.release_tarpit_slot()
     except Exception:
         pass
     finally:
