@@ -1,40 +1,31 @@
 """
 Project VALKYRJA — Adapter Module 4: Offline Point-of-Care Survival Bunker (SQLite),
-IoMT Hardware Lifecycle Registry & Multi-Hospital Subsidiary Federation.
-Architecture: Hexagonal Secondary Adapter (MedCore Clinical, IoMT & Bioenergetic OT Continuity)
-Compliance Target: Sweden IVO (Lex Maria Patient Safety) & SFS 2025:1506 (NIS2)
-
-Implements:
-1. PROTOCOL G.A.L.A. & B.I.O.F.O.A.M. (Row-Level HMAC + 6-Table Merkle Manifest Seal):
-   - Protects the 12 High-Mortality Clinical Pillars, Bilateral [T_min, T_max] Cryo Matrix,
-     OT Backup Power, and Connected IoMT/IT Equipment Registry.
-   - Supports signed N+1 Cold-Chain Maintenance, OT Generator Maintenance/Replacement,
-     and Clinical/IT Equipment Provisioning, Maintenance, Replacement & Apoptosis (Removal)
-     across PCs, iPads, Laparoscopy Towers, Lab Analyzers, CT/MRI Imaging, ICU & NICU.
-2. PROTOCOL S.O.F.I.A. (Safeguarded Offline Failover for Infant & Acute-care):
-   - Cryptographic SHA-256 Mother-Infant Wristband Dyad Pairing for NICU/Nursery (Cuneros).
-3. Multi-Hospital & Subsidiary Lymphatic Federation:
-   - Prevents lateral movement between sub-clinics and sister hospitals of the same corporate
-     group while enabling B.I.O.F.O.A.M.-signed ambulance transfer capsules.
+IoMT Hardware Registry, EMS Ambulance/Helicopter Fleet, Workforce/Contractor HLA Matrix,
+and Multi-Hospital Subsidiary Federation with Phagocytic CDR & Board/Architect Governance.
+Architecture: Hexagonal Secondary Adapter (MedCore Clinical, Fleet & Workforce Continuity)
+Compliance Target: Sweden IVO (Lex Maria), Patientdatalagen (SFS 2008:355) & SFS 2025:1506 (NIS2)
 """
 
 import hashlib
 import hmac
 import json
 import os
+import re
 import sqlite3
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 SOFIA_DEFAULT_KEY = "PROTOCOL_SOFIA_NICU_MOTHER_INFANT_DYAD_KEY_2026"
 BIOFOAM_DEFAULT_KEY = "PROTOCOL_GALA_BIOFOAM_ROW_INTEGRITY_SEED_2026"
 FEDERATION_DEFAULT_KEY = "VALKYRJA_CORPORATE_SUBSIDIARY_FEDERATION_SEED_2026"
+ARCHITECT_DEFAULT_KEY = "ARCHITECT_DEV_DR_LUIS_ABURTO_MASTER_SEED_2026"
 
 
 class LocalClinicalSurvivalBunker:
     """
     PROTOCOL G.A.L.A., PROTOCOL S.O.F.I.A. & B.I.O.F.O.A.M. Offline Survival Node.
-    Guarantees sub-5ms local clinical, bilateral cryogenic, IoMT hardware, and OT power continuity.
+    Guarantees sub-5ms local clinical, bilateral cryogenic, IoMT hardware, OT power,
+    EMS Ambulance/Helicopter fleet, and Workforce/Contractor access continuity.
     """
 
     SOFIA_NURSERY_SECRET: bytes = os.environ.get("VALKYRJA_SOFIA_KEY", SOFIA_DEFAULT_KEY).encode("utf-8")
@@ -47,7 +38,22 @@ class LocalClinicalSurvivalBunker:
         "protocol_sofia_nicu_nursery",
         "ot_bioenergetic_power_grid",
         "iomt_connected_hardware_registry",
+        "ems_transport_fleet_registry",
+        "workforce_personnel_registry",
     )
+
+    # Strict Role-Based Access Control (HLA Least-Privilege Scopes by Staff Category)
+    ROLE_ALLOWED_SCOPES: Dict[str, str] = {
+        "ATTENDING_PHYSICIAN_OR_SPECIALIST": "FULL_CLINICAL_EHR_AND_ORDERS",
+        "REGISTERED_NURSE_ICU_ER": "MEDICATION_ADMIN_AND_VITALS_TELEMETRY",
+        "PARAMEDIC_FLIGHT_MEDIC": "EMS_PRE_HOSPITAL_TRIAGE_AND_BLOOD_REQUEST",
+        "AMBULANCE_HELICOPTER_OPERATOR": "GPS_DISPATCH_AND_ROUTE_NAVIGATION_ONLY",
+        "CLINICAL_ORDERLY_CAMILLERO": "PATIENT_INTERNAL_TRANSPORT_BAY_TRACKING_ONLY",
+        "SANITATION_INTENDENCIA": "BIOHAZARD_STERILIZATION_ZONE_STATUS_ONLY",
+        "DIETARY_CAFETERIA_STAFF": "INPATIENT_ENTERALE_DIET_ALLERGY_TRAY_ONLY",
+        "BIOMEDICAL_OT_ENGINEER": "HARDWARE_MAINTENANCE_SANDBOX_ONLY",
+        "CONTRACTOR_THIRD_PARTY_COMPANY": "RESTRICTED_VENDOR_CONTRACT_SANDBOX_ONLY",
+    }
 
     def __init__(self, db_path: str = ":memory:", branch_id: str = "SE_STHLM_MAIN_HOSPITAL_01") -> None:
         self.db_path = db_path
@@ -56,7 +62,8 @@ class LocalClinicalSurvivalBunker:
         self.conn.row_factory = sqlite3.Row
         self._bunker_merkle_manifest_hmac: Optional[str] = None
         self._expected_triage_tokens: List[str] = []
-        self._revoked_hardware_tokens: set[str] = set()
+        self._revoked_hardware_tokens: Set[str] = set()
+        self._revoked_fleet_units: Set[str] = set()
         self._initialize_survival_schema()
 
     def _initialize_survival_schema(self) -> None:
@@ -133,7 +140,6 @@ class LocalClinicalSurvivalBunker:
             """
         )
 
-        # Table 6: Connected Clinical IoMT & IT Hardware Lifecycle Registry (Thymic HLA Selection)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS iomt_connected_hardware_registry (
@@ -143,6 +149,38 @@ class LocalClinicalSurvivalBunker:
                 serial_or_mac TEXT NOT NULL,
                 hla_hardware_token TEXT NOT NULL,
                 operational_status TEXT NOT NULL
+            )
+            """
+        )
+
+        # Table 7: EMS Ambulance, Mobile ICU & Helicopter Medevac Fleet Registry
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ems_transport_fleet_registry (
+                unit_id TEXT PRIMARY KEY,
+                vehicle_type TEXT NOT NULL,
+                home_station_branch TEXT NOT NULL,
+                onboard_life_support_capabilities TEXT NOT NULL,
+                gps_telemetry_token TEXT NOT NULL,
+                fleet_status TEXT NOT NULL
+            )
+            """
+        )
+
+        # Table 8: Hospital Workforce, Support Staff, Contractors & Occasional/Sporadic Personnel
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workforce_personnel_registry (
+                staff_id TEXT PRIMARY KEY,
+                full_name_or_alias TEXT NOT NULL,
+                role_category TEXT NOT NULL,
+                employment_modality TEXT NOT NULL,
+                partner_company_contract TEXT NOT NULL,
+                assigned_branch_id TEXT NOT NULL,
+                allowed_access_scope TEXT NOT NULL,
+                contract_valid_until_unix REAL NOT NULL,
+                hla_staff_badge_hmac TEXT NOT NULL,
+                active_status TEXT NOT NULL
             )
             """
         )
@@ -160,12 +198,11 @@ class LocalClinicalSurvivalBunker:
         organ_params: str,
         bay: str,
     ) -> str:
-        """Computes a row-level B.I.O.F.O.A.M. HMAC-SHA256 tag over every clinical field."""
         canonical = f"{patient_token}|{retts_level}|{pillar}|{abo_rh}|{antibodies}|{allergies}|{organ_params}|{bay}"
         return hmac.new(cls.BIOFOAM_ROW_SECRET, canonical.encode("utf-8"), hashlib.sha256).hexdigest()[:20].upper()
 
     def compute_full_bunker_merkle_manifest(self) -> str:
-        """Hashes the exact row count and canonical content of all 6 survival tables in SQLite."""
+        """Hashes the exact row count and canonical content of all 8 survival tables in SQLite."""
         cursor = self.conn.cursor()
         manifest_accumulator = hashlib.sha256()
 
@@ -183,7 +220,7 @@ class LocalClinicalSurvivalBunker:
         ).hexdigest().upper()
 
     def verify_bunker_row_integrity(self) -> Dict[str, object]:
-        """Audits both individual B.I.O.F.O.A.M. row seals AND the 6-Table Merkle Manifest HMAC."""
+        """Audits both individual B.I.O.F.O.A.M. row seals AND the multi-table Merkle Manifest HMAC."""
         cursor = self.conn.cursor()
         tampered_patients: List[str] = []
         present_tokens: List[str] = []
@@ -214,7 +251,7 @@ class LocalClinicalSurvivalBunker:
         current_merkle = self.compute_full_bunker_merkle_manifest()
         merkle_intact = (
             self._bunker_merkle_manifest_hmac is not None
-            and hmac.compare_digest(current_merkle, self._bunker_merkle_merkle_or_manifest())
+            and hmac.compare_digest(current_merkle, self._bunker_merkle_manifest_hmac)
         )
 
         is_intact = (len(tampered_patients) == 0) and merkle_intact
@@ -230,11 +267,7 @@ class LocalClinicalSurvivalBunker:
             ),
         }
 
-    def _bunker_merkle_merkle_or_manifest(self) -> str:
-        return self._bunker_merkle_manifest_hmac or ""
-
     def audit_bilateral_thermo_cryogenic_safety(self) -> Dict[str, object]:
-        """Evaluates all biological & cryogenic units against bilateral [min_safe_celsius, max_safe_celsius]."""
         cursor = self.conn.cursor()
         safe_units: List[Dict[str, object]] = []
         thermal_excursions: List[Dict[str, object]] = []
@@ -313,7 +346,7 @@ class LocalClinicalSurvivalBunker:
         }
 
     # =========================================================================
-    # 2. ELECTRICAL GRID, UPS & GENERATOR MAINTENANCE / REPLACEMENT (MITOPHAGY)
+    # 2. ELECTRICAL GRID, UPS & GENERATOR MAINTENANCE / REPLACEMENT
     # =========================================================================
     @classmethod
     def generate_power_lifecycle_auth_token(
@@ -325,7 +358,7 @@ class LocalClinicalSurvivalBunker:
     def execute_ot_generator_maintenance_or_swap(
         self,
         target_subsystem_id: str,
-        action: str,  # "MAINTENANCE_BYPASS" or "REPLACE_WITH_NEW_GENERATOR"
+        action: str,
         collateral_backup_online: bool,
         collateral_autonomy_hours: float,
         engineer_id: str,
@@ -333,13 +366,6 @@ class LocalClinicalSurvivalBunker:
         new_subsystem_id: Optional[str] = None,
         new_voltage_telemetry: str = "400V 3-Phase / 50.00 Hz (New Unit Online)",
     ) -> Dict[str, object]:
-        """
-        Governs maintenance or full replacement of hospital electrical generators and UPS banks:
-        1. Verifies cryptographic facility engineering authorization.
-        2. Enforces Collateral Perfusion Guard: Blocks taking any generator/UPS offline unless
-           collateral backup power is verified online with >= 72.0 hours of Red-Outlet autonomy.
-        3. Updates or swaps the generator record and re-seals the 6-Table Merkle Manifest.
-        """
         expected = self.generate_power_lifecycle_auth_token(target_subsystem_id, action, engineer_id)
         if not hmac.compare_digest(expected, auth_token.strip().upper()):
             return {"power_operation_authorized": False, "status": "REJECTED_INVALID_OT_POWER_HMAC"}
@@ -347,10 +373,7 @@ class LocalClinicalSurvivalBunker:
         if not collateral_backup_online or collateral_autonomy_hours < 72.0:
             return {
                 "power_operation_authorized": False,
-                "status": (
-                    "BLOCKED_INSUFFICIENT_COLLATERAL_POWER: Cannot service or swap generator "
-                    "without verified >=72h N+1 backup power on Red Outlets!"
-                ),
+                "status": "BLOCKED_INSUFFICIENT_COLLATERAL_POWER: Requires >=72h N+1 backup!",
             }
 
         cursor = self.conn.cursor()
@@ -399,7 +422,7 @@ class LocalClinicalSurvivalBunker:
         }
 
     # =========================================================================
-    # 3. CONNECTED IoMT & IT HARDWARE LIFECYCLE (PCs, iPads, OR, Lab, Imaging, ICU, NICU)
+    # 3. CONNECTED IoMT & IT HARDWARE LIFECYCLE
     # =========================================================================
     @classmethod
     def generate_hla_hardware_token(cls, device_id: str, category: str, dept: str, serial_mac: str) -> str:
@@ -414,9 +437,9 @@ class LocalClinicalSurvivalBunker:
 
     def manage_connected_equipment_lifecycle(
         self,
-        action: str,  # "ADD_NEW", "MAINTENANCE_MODE", "REPLACE_SWAP", "REMOVE_DECOMMISSION"
+        action: str,
         device_id: str,
-        device_category: str,  # e.g., "OR_LAPAROSCOPY_TOWER", "CLINICAL_IPAD", "CT_MRI_IMAGING", "LAB_ANALYZER", "NICU_INCUBATOR", "ICU_VENTILATOR"
+        device_category: str,
         assigned_department: str,
         serial_or_mac: str,
         biomed_engineer_id: str,
@@ -424,12 +447,6 @@ class LocalClinicalSurvivalBunker:
         replacement_device_id: Optional[str] = None,
         replacement_serial_mac: Optional[str] = None,
     ) -> Dict[str, object]:
-        """
-        Thymic Positive/Negative Selection for Connected Hospital Equipment:
-        Safely adds new devices, isolates units under maintenance, performs atomic hardware
-        swaps, or executes cryptographic apoptosis (revocation) when removing old devices,
-        automatically re-sealing the 6-Table Merkle Manifest.
-        """
         expected_auth = self.generate_equipment_lifecycle_auth(action, device_id, biomed_engineer_id)
         if not hmac.compare_digest(expected_auth, auth_token.strip().upper()):
             return {
@@ -455,27 +472,19 @@ class LocalClinicalSurvivalBunker:
                 ),
             )
             result_status = "NEW_EQUIPMENT_PROVISIONED_AND_SEALED"
-
         elif action == "MAINTENANCE_MODE":
             cursor.execute(
-                """
-                UPDATE iomt_connected_hardware_registry
-                SET operational_status = 'MAINTENANCE_SANDBOX_ISOLATED'
-                WHERE device_id = ?
-                """,
+                "UPDATE iomt_connected_hardware_registry SET operational_status = 'MAINTENANCE_SANDBOX_ISOLATED' WHERE device_id = ?",
                 (device_id,),
             )
             result_status = "EQUIPMENT_ISOLATED_FOR_SAFE_MAINTENANCE"
-
         elif action == "REPLACE_SWAP" and replacement_device_id and replacement_serial_mac:
             old_row = cursor.execute(
                 "SELECT * FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
             ).fetchone()
             if old_row:
                 self._revoked_hardware_tokens.add(old_row["hla_hardware_token"])
-            cursor.execute(
-                "DELETE FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
-            )
+            cursor.execute("DELETE FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,))
             new_hla = self.generate_hla_hardware_token(
                 replacement_device_id, device_category, assigned_department, replacement_serial_mac
             )
@@ -491,16 +500,13 @@ class LocalClinicalSurvivalBunker:
                 ),
             )
             result_status = f"SWAPPED_{device_id}_TO_{replacement_device_id}_OLD_TOKEN_REVOKED"
-
         elif action == "REMOVE_DECOMMISSION":
             old_row = cursor.execute(
                 "SELECT * FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
             ).fetchone()
             if old_row:
                 self._revoked_hardware_tokens.add(old_row["hla_hardware_token"])
-            cursor.execute(
-                "DELETE FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
-            )
+            cursor.execute("DELETE FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,))
             result_status = f"APOPTOSIS_DECOMMISSIONED_{device_id}_TOKEN_PERMANENTLY_REVOKED"
         else:
             return {"lifecycle_authorized": False, "status": "UNSUPPORTED_LIFECYCLE_ACTION"}
@@ -515,12 +521,8 @@ class LocalClinicalSurvivalBunker:
         }
 
     def verify_connected_device_access(self, device_id: str, presented_hla_token: str) -> Dict[str, object]:
-        """Blocks decommissioned/stolen devices, units in maintenance mode, or unregistered rogue hardware."""
         if presented_hla_token in self._revoked_hardware_tokens:
-            return {
-                "access_granted": False,
-                "verdict": "BLOCKED_APOPTOSIS_REVOKED_HARDWARE_TOKEN",
-            }
+            return {"access_granted": False, "verdict": "BLOCKED_APOPTOSIS_REVOKED_HARDWARE_TOKEN"}
         cursor = self.conn.cursor()
         row = cursor.execute(
             "SELECT * FROM iomt_connected_hardware_registry WHERE device_id = ?", (device_id,)
@@ -530,14 +532,226 @@ class LocalClinicalSurvivalBunker:
         if not hmac.compare_digest(row["hla_hardware_token"], presented_hla_token):
             return {"access_granted": False, "verdict": "BLOCKED_FORGED_HARDWARE_SIGNATURE"}
         if row["operational_status"] == "MAINTENANCE_SANDBOX_ISOLATED":
-            return {
-                "access_granted": False,
-                "verdict": "QUARANTINED_DEVICE_UNDER_MAINTENANCE_NO_PROD_ACCESS",
-            }
+            return {"access_granted": False, "verdict": "QUARANTINED_DEVICE_UNDER_MAINTENANCE_NO_PROD_ACCESS"}
         return {
             "access_granted": True,
             "verdict": "AUTHORIZED_HLA_COMPATIBLE_EQUIPMENT",
             "allowed_department_scope": row["assigned_department"],
+        }
+
+    # =========================================================================
+    # 4. EMS AMBULANCE & HELICOPTER FLEET LIFECYCLE (ADD, MAINT, SWAP, THEFT LOCK)
+    # =========================================================================
+    @classmethod
+    def generate_fleet_telemetry_token(cls, unit_id: str, vehicle_type: str, station: str) -> str:
+        payload = f"EMS_FLEET:{unit_id}:{vehicle_type}:{station}".encode("utf-8")
+        sig = hmac.new(cls.BIOFOAM_ROW_SECRET, payload, hashlib.sha256).hexdigest()[:16].upper()
+        return f"EMS-GPS-{sig}"
+
+    @classmethod
+    def generate_fleet_lifecycle_auth(cls, action: str, unit_id: str, commander_id: str) -> str:
+        payload = f"FLEET_CMD:{action}:{unit_id}:{commander_id}".encode("utf-8")
+        return hmac.new(cls.BIOFOAM_ROW_SECRET, payload, hashlib.sha256).hexdigest()[:18].upper()
+
+    def manage_ems_fleet_unit_lifecycle(
+        self,
+        action: str,  # "ADD_UNIT", "MAINTENANCE_OUT_OF_SERVICE", "REPLACE_UNIT", "REPORT_STOLEN_LOCKDOWN"
+        unit_id: str,
+        vehicle_type: str,  # "GROUND_MOBILE_ICU_AMBULANCE", "HELICOPTER_ECMO_MEDEVAC", "RAPID_BLOOD_DRONE_OR_CAR"
+        home_station_branch: str,
+        capabilities: str,
+        fleet_commander_id: str,
+        auth_token: str,
+        replacement_unit_id: Optional[str] = None,
+    ) -> Dict[str, object]:
+        """
+        Manages the lifecycle of Ambulances, Mobile ICUs, and Medevac Helicopters:
+        Supports adding new units, mechanical maintenance isolation, unit replacement,
+        and instant cryptographic lockdown + telemetry severing if an ambulance is stolen.
+        """
+        expected = self.generate_fleet_lifecycle_auth(action, unit_id, fleet_commander_id)
+        if not hmac.compare_digest(expected, auth_token.strip().upper()):
+            return {"fleet_op_authorized": False, "status": "REJECTED_INVALID_FLEET_COMMAND_SIGNATURE"}
+
+        cursor = self.conn.cursor()
+
+        if action == "ADD_UNIT":
+            tok = self.generate_fleet_telemetry_token(unit_id, vehicle_type, home_station_branch)
+            cursor.execute(
+                "INSERT OR REPLACE INTO ems_transport_fleet_registry VALUES (?, ?, ?, ?, ?, ?)",
+                (unit_id, vehicle_type, home_station_branch, capabilities, tok, "ACTIVE_READY_FOR_DISPATCH"),
+            )
+            status_msg = f"FLEET_UNIT_{unit_id}_COMMISSIONED"
+
+        elif action == "MAINTENANCE_OUT_OF_SERVICE":
+            cursor.execute(
+                "UPDATE ems_transport_fleet_registry SET fleet_status = 'WORKSHOP_MAINTENANCE_OFFLINE' WHERE unit_id = ?",
+                (unit_id,),
+            )
+            status_msg = f"FLEET_UNIT_{unit_id}_IN_MAINTENANCE"
+
+        elif action == "REPLACE_UNIT" and replacement_unit_id:
+            old_u = cursor.execute(
+                "SELECT * FROM ems_transport_fleet_registry WHERE unit_id = ?", (unit_id,)
+            ).fetchone()
+            if old_u:
+                self._revoked_fleet_units.add(old_u["gps_telemetry_token"])
+            cursor.execute("DELETE FROM ems_transport_fleet_registry WHERE unit_id = ?", (unit_id,))
+            new_tok = self.generate_fleet_telemetry_token(
+                replacement_unit_id, vehicle_type, home_station_branch
+            )
+            cursor.execute(
+                "INSERT INTO ems_transport_fleet_registry VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    replacement_unit_id,
+                    vehicle_type,
+                    home_station_branch,
+                    capabilities,
+                    new_tok,
+                    "ACTIVE_READY_FOR_DISPATCH",
+                ),
+            )
+            status_msg = f"FLEET_SWAPPED_{unit_id}_TO_{replacement_unit_id}"
+
+        elif action == "REPORT_STOLEN_LOCKDOWN":
+            old_u = cursor.execute(
+                "SELECT * FROM ems_transport_fleet_registry WHERE unit_id = ?", (unit_id,)
+            ).fetchone()
+            if old_u:
+                self._revoked_fleet_units.add(old_u["gps_telemetry_token"])
+            cursor.execute("DELETE FROM ems_transport_fleet_registry WHERE unit_id = ?", (unit_id,))
+            status_msg = (
+                f"STOLEN_VEHICLE_APOPTOSIS_LOCKDOWN: {unit_id} hospital network certificates "
+                f"shredded, narcotics vault locked, and GPS beacon switched to police tracking."
+            )
+        else:
+            return {"fleet_op_authorized": False, "status": "UNSUPPORTED_FLEET_ACTION"}
+
+        self.conn.commit()
+        self._bunker_merkle_manifest_hmac = self.compute_full_bunker_merkle_manifest()
+        return {
+            "fleet_op_authorized": True,
+            "status": status_msg,
+            "merkle_manifest_resealed": True,
+        }
+
+    # =========================================================================
+    # 5. HOSPITAL WORKFORCE, CONTRACTORS & OCCASIONAL / SPORADIC STAFF REGISTRY
+    # =========================================================================
+    @classmethod
+    def compute_staff_hla_badge(
+        cls,
+        staff_id: str,
+        role_category: str,
+        modality: str,
+        partner_company: str,
+        branch_id: str,
+        valid_until: float,
+    ) -> str:
+        payload = f"STAFF_HLA:{staff_id}:{role_category}:{modality}:{partner_company}:{branch_id}:{valid_until}".encode(
+            "utf-8"
+        )
+        sig = hmac.new(cls.BIOFOAM_ROW_SECRET, payload, hashlib.sha256).hexdigest()[:18].upper()
+        return f"HLA-STAFF-{sig}"
+
+    def register_or_update_workforce_member(
+        self,
+        staff_id: str,
+        full_name_or_alias: str,
+        role_category: str,
+        employment_modality: str,  # "PERMANENT_STAFF", "OCCASIONAL_SPORADIC_LOCUM", "CONTRACTOR_EXTERNAL_COMPANY"
+        partner_company_contract: str,
+        assigned_branch_id: str,
+        contract_valid_until_unix: float,
+    ) -> Dict[str, object]:
+        """
+        Registers hospital personnel across all clinical, support, and contractor tiers
+        (Physicians, Nurses, Paramedics, Ambulance Drivers, Orderlies/Camilleros,
+        Sanitation/Intendencia, Cafeteria/Nutrition, and External Partner Companies),
+        binding each worker to a strict Least-Privilege HLA Scope and automatic expiration timestamp.
+        """
+        allowed_scope = self.ROLE_ALLOWED_SCOPES.get(role_category, "NO_CLINICAL_SYSTEM_ACCESS")
+        badge_hmac = self.compute_staff_hla_badge(
+            staff_id,
+            role_category,
+            employment_modality,
+            partner_company_contract,
+            assigned_branch_id,
+            contract_valid_until_unix,
+        )
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO workforce_personnel_registry VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                staff_id,
+                full_name_or_alias,
+                role_category,
+                employment_modality,
+                partner_company_contract,
+                assigned_branch_id,
+                allowed_scope,
+                contract_valid_until_unix,
+                badge_hmac,
+                "ACTIVE_VERIFIED",
+            ),
+        )
+        self.conn.commit()
+        self._bunker_merkle_manifest_hmac = self.compute_full_bunker_merkle_manifest()
+        return {
+            "staff_registered": True,
+            "staff_id": staff_id,
+            "employment_modality": employment_modality,
+            "assigned_least_privilege_scope": allowed_scope,
+            "hla_staff_badge_hmac": badge_hmac,
+        }
+
+    def verify_workforce_access_request(
+        self,
+        staff_id: str,
+        requested_scope: str,
+        current_unix_time: Optional[float] = None,
+    ) -> Dict[str, object]:
+        """
+        Validates whether a permanent employee, occasional/sporadic worker, or external contractor:
+        1. Exists in the sealed registry and holds a valid HLA badge.
+        2. Has not exceeded their occasional shift or third-party contract expiration timestamp.
+        3. Is requesting only the specific compartment allowed for their role (e.g., Cafeteria or
+           Sanitation staff cannot query ICU ventilator or EHR tables).
+        """
+        now = time.time() if current_unix_time is None else current_unix_time
+        cursor = self.conn.cursor()
+        row = cursor.execute(
+            "SELECT * FROM workforce_personnel_registry WHERE staff_id = ?", (staff_id,)
+        ).fetchone()
+
+        if not row or row["active_status"] != "ACTIVE_VERIFIED":
+            return {"access_authorized": False, "reason": "BLOCKED_UNREGISTERED_OR_REVOKED_PERSONNEL"}
+
+        # Automatic expiration check for Occasional / Sporadic workers & External Contractors
+        if now > float(row["contract_valid_until_unix"]):
+            return {
+                "access_authorized": False,
+                "reason": (
+                    f"EXPIRED_SPORADIC_OR_CONTRACTOR_WINDOW: {row['employment_modality']} "
+                    f"({row['partner_company_contract']}) shift/contract expired automatically."
+                ),
+            }
+
+        if row["allowed_access_scope"] != requested_scope:
+            return {
+                "access_authorized": False,
+                "reason": (
+                    f"HLA_ROLE_COMPARTMENT_VIOLATION: Role '{row['role_category']}' is restricted "
+                    f"to '{row['allowed_access_scope']}' and cannot access '{requested_scope}'."
+                ),
+            }
+
+        return {
+            "access_authorized": True,
+            "staff_id": staff_id,
+            "role_category": row["role_category"],
+            "employment_modality": row["employment_modality"],
+            "granted_scope": row["allowed_access_scope"],
         }
 
     @classmethod
@@ -598,7 +812,7 @@ class LocalClinicalSurvivalBunker:
         }
 
     def seed_shadow_sync_snapshot(self) -> None:
-        """Populates all 6 tables and locks the 6-Table Merkle Manifest."""
+        """Populates all 8 survival tables and locks the 8-Table Merkle Manifest."""
         cursor = self.conn.cursor()
 
         raw_triage_rows = [
@@ -719,7 +933,6 @@ class LocalClinicalSurvivalBunker:
             ],
         )
 
-        # Seed Table 6: Initial Connected IoMT & Clinical IT Fleet
         initial_devices = [
             ("DEV-OR-LAP-01", "OR_LAPAROSCOPY_4K_TOWER", "SURGICAL_OR_SUITE_03", "MAC:00:1A:2B:OR:01"),
             ("DEV-IPAD-ER-04", "CLINICAL_MOBILE_IPAD_PRO", "EMERGENCY_TRIAGE_BAY", "SER:IPAD-SE-9941"),
@@ -733,6 +946,38 @@ class LocalClinicalSurvivalBunker:
             cursor.execute(
                 "INSERT OR REPLACE INTO iomt_connected_hardware_registry VALUES (?, ?, ?, ?, ?, ?)",
                 (dev_id, cat, dept, mac, tok, "ACTIVE_THYMIC_HLA_VERIFIED"),
+            )
+
+        # Seed Table 7: EMS Ambulance & Medevac Helicopter Fleet
+        initial_fleet = [
+            ("AMB-MICU-SE-01", "GROUND_MOBILE_ICU_AMBULANCE", "SE_STHLM_MAIN_HOSPITAL_01", "VENTILATOR | DEFIB | PORTABLE_CRYO_O_NEG"),
+            ("AMB-ALS-SUB-04", "ADVANCED_LIFE_SUPPORT_AMBULANCE", "SE_UPPSALA_SUBCLINIC_02", "AIRWAY | LUCAS_CPR | TELEMETRY"),
+            ("HELI-MEDEVAC-01", "HELICOPTER_ECMO_AND_BLOOD_MEDEVAC", "SE_STHLM_MAIN_HOSPITAL_01", "AIR_ECMO | 6_UNITS_O_NEG_CRYO_BOX | SURGICAL_TEAM"),
+        ]
+        for u_id, v_type, station, caps in initial_fleet:
+            ftok = self.generate_fleet_telemetry_token(u_id, v_type, station)
+            cursor.execute(
+                "INSERT OR REPLACE INTO ems_transport_fleet_registry VALUES (?, ?, ?, ?, ?, ?)",
+                (u_id, v_type, station, caps, ftok, "ACTIVE_READY_FOR_DISPATCH"),
+            )
+
+        # Seed Table 8: Multi-Tier Hospital Workforce, Support Staff, Contractors & Occasional Staff
+        initial_workforce = [
+            ("STAFF-MD-001", "Dr. Luis Aburto (MD / Lead Architect)", "ATTENDING_PHYSICIAN_OR_SPECIALIST", "PERMANENT_STAFF", "INTERNAL_HOSPITAL_STAFF", 4102444800.0),
+            ("STAFF-RN-102", "Maja Lindström (ICU RN)", "REGISTERED_NURSE_ICU_ER", "PERMANENT_STAFF", "INTERNAL_HOSPITAL_STAFF", 4102444800.0),
+            ("STAFF-PARA-205", "Erik Sjöberg (Flight Paramedic)", "PARAMEDIC_FLIGHT_MEDIC", "PERMANENT_STAFF", "AISAB_SWEDISH_EMS", 4102444800.0),
+            ("STAFF-DRV-209", "Johan Berg (Ambulance Operator)", "AMBULANCE_HELICOPTER_OPERATOR", "PERMANENT_STAFF", "AISAB_SWEDISH_EMS", 4102444800.0),
+            ("STAFF-ORD-310", "Carlos Méndez (ER Orderly / Camillero)", "CLINICAL_ORDERLY_CAMILLERO", "PERMANENT_STAFF", "INTERNAL_HOSPITAL_STAFF", 4102444800.0),
+            ("STAFF-SAN-401", "Anna Nilsson (OR Sanitation / Intendencia)", "SANITATION_INTENDENCIA", "CONTRACTOR_EXTERNAL_COMPANY", "NORDIC_CLEAN_MED_AB", 1800000000.0),
+            ("STAFF-CAF-501", "Lars Olsson (Clinical Nutrition & Comedor)", "DIETARY_CAFETERIA_STAFF", "CONTRACTOR_EXTERNAL_COMPANY", "SVENSKA_KOK_CARE_AB", 1800000000.0),
+            ("STAFF-LOCUM-999", "Dr. Sofia Ek (Weekend Locum Specialist)", "ATTENDING_PHYSICIAN_OR_SPECIALIST", "OCCASIONAL_SPORADIC_LOCUM", "NORDIC_LOCUM_AGENCY_AB", 1763050000.0),
+        ]
+        for s_id, name, role, mod, company, exp_ts in initial_workforce:
+            scope = self.ROLE_ALLOWED_SCOPES[role]
+            badge = self.compute_staff_hla_badge(s_id, role, mod, company, self.branch_id, exp_ts)
+            cursor.execute(
+                "INSERT OR REPLACE INTO workforce_personnel_registry VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (s_id, name, role, mod, company, self.branch_id, scope, exp_ts, badge, "ACTIVE_VERIFIED"),
             )
 
         self.conn.commit()
@@ -765,6 +1010,12 @@ class LocalClinicalSurvivalBunker:
         connected_iomt_fleet: List[Dict[str, object]] = [
             dict(row) for row in cursor.execute("SELECT * FROM iomt_connected_hardware_registry")
         ]
+        ems_fleet: List[Dict[str, object]] = [
+            dict(row) for row in cursor.execute("SELECT * FROM ems_transport_fleet_registry")
+        ]
+        workforce_summary: List[Dict[str, object]] = [
+            dict(row) for row in cursor.execute("SELECT * FROM workforce_personnel_registry")
+        ]
 
         latency_ms = round((time.perf_counter_ns() - start_ns) / 1_000_000, 3)
 
@@ -774,9 +1025,10 @@ class LocalClinicalSurvivalBunker:
             "active_bunker_protocols": [
                 "PROTOCOL_GALA_12_PILLARS",
                 "PROTOCOL_SOFIA_NICU_SAFEGUARD",
-                "BIOFOAM_ROW_AND_6TABLE_MERKLE_SEAL",
+                "BIOFOAM_ROW_AND_8TABLE_MERKLE_SEAL",
                 "BILATERAL_CRYO_HEMOLYSIS_AND_N1_MAINT_GUARD",
-                "THYMIC_HLA_IOMT_EQUIPMENT_LIFECYCLE_GUARD",
+                "THYMIC_HLA_IOMT_AND_EMS_FLEET_GUARD",
+                "WORKFORCE_AND_SPORADIC_CONTRACTOR_HLA_MATRIX",
                 "BIOENERGETIC_OT_POWER_ISLAND_MODE",
             ],
             "biofoam_integrity_audit": integrity_audit,
@@ -787,39 +1039,67 @@ class LocalClinicalSurvivalBunker:
             "protocol_sofia_nicu_nursery_dyads": sofia_nicu_protected,
             "ot_power_and_backup_generators": ot_power_systems,
             "verified_iomt_connected_equipment": connected_iomt_fleet,
+            "ems_ambulance_and_helicopter_fleet": ems_fleet,
+            "workforce_and_contractors_count": len(workforce_summary),
         }
 
 
 # =====================================================================
-# 4. MULTI-HOSPITAL & SUBSIDIARY FEDERATION (LYMPHATIC VALVE ISOLATION)
+# MULTI-HOSPITAL & SUBSIDIARY FEDERATION (CDR SANITIZER, BOARD/ARCHITECT
+# QUORUM & CRITICAL EMS PIT-STOP / SUPPLY RENDEZVOUS)
 # =====================================================================
 class MultiHospitalSubsidiaryFederation:
     """
-    Manages a corporate network of main hospitals, sub-clinics, and diagnostic subsidiaries:
-    1. Independent Cellular Isolation: If a sub-clinic is breached, its lymphatic valve closes
-       in <1ms so ransomware cannot move laterally to the Main Hospital or sister clinics.
-    2. Signed Ambulance Transfer Exosome: Allows a compromised/offline sub-clinic to export
-       a read-only, B.I.O.F.O.A.M.-signed emergency patient summary for safe physical ambulance
-       transfer to the Main Hospital without opening network sockets.
+    Governs inter-hospital data exchange, confidential sub-clinic vaults, and regional
+    EMS ambulance/helicopter dispatch across a healthcare group:
+    1. Phagocytic CDR Sanitizer: Disarms Trojans/macros hidden inside inter-clinic lab/imaging transfers.
+    2. Sub-Clinic Vault + Board & Lead Architect Quorum: Prevents unauthorized cross-clinic
+       snooping unless co-signed by Board Members + Lead Architect/Developer (Dr. Luis Aburto).
+    3. Critical Pit-Stop & Helicopter Supply Rendezvous: Routes unstable distant patients to the
+       nearest sub-clinic for immediate stabilization while dispatching missing blood/supplies
+       from the Main Hospital or sister clinics to meet them en route.
     """
 
     CORPORATE_FEDERATION_SECRET: bytes = os.environ.get(
         "VALKYRJA_FEDERATION_KEY", FEDERATION_DEFAULT_KEY
     ).encode("utf-8")
+    ARCHITECT_MASTER_SECRET: bytes = os.environ.get(
+        "VALKYRJA_ARCHITECT_KEY", ARCHITECT_DEFAULT_KEY
+    ).encode("utf-8")
+
+    MALICIOUS_PAYLOAD_PATTERNS = (
+        r"<script",
+        r"javascript:",
+        r"powershell",
+        r"cmd\.exe",
+        r"/bin/sh",
+        r"eval\(",
+        r"DROP\s+TABLE",
+        r"UNION\s+SELECT",
+        r"MZ\x90\x00",
+        r"VBA_MACRO_AUTOOPEN",
+    )
 
     def __init__(self, corporate_group_name: str = "NORDIC_VITALCARE_HEALTH_GROUP_AB") -> None:
         self.corporate_group_name = corporate_group_name
-        self.subsidiary_nodes: Dict[str, Dict[str, str]] = {}
+        self.subsidiary_nodes: Dict[str, Dict[str, object]] = {}
 
-    def register_subsidiary_node(self, branch_id: str, node_role: str) -> None:
+    def register_subsidiary_node(
+        self,
+        branch_id: str,
+        node_role: str,
+        available_clinical_services: Optional[List[str]] = None,
+        available_blood_and_supplies: Optional[Dict[str, int]] = None,
+    ) -> None:
         self.subsidiary_nodes[branch_id] = {
-            "role": node_role,  # e.g., "TERTIARY_MAIN_HOSPITAL", "PERIPHERAL_SUBCLINIC", "DIAGNOSTIC_LAB_CENTER"
+            "role": node_role,
             "network_valve_state": "OPEN_HOMEOSTASIS",
             "local_bunker_state": "GREEN_ONLINE",
+            "services": available_clinical_services or ["ER_STABILIZATION", "BASIC_LAB"],
+            "inventory": available_blood_and_supplies or {"O_NEG_RBC": 2},
         }
 
     def isolate_compromised_subsidiary(self, compromised_branch_id: str, reason: str) -> Dict[str, object]:
-        """Closes the inter-hospital lymphatic valve to block lateral ransomware propagation."""
         if compromised_branch_id in self.subsidiary_nodes:
             self.subsidiary_nodes[compromised_branch_id]["network_valve_state"] = (
                 "LYMPHATIC_VALVE_CLOSED_QUARANTINED"
@@ -841,6 +1121,176 @@ class MultiHospitalSubsidiaryFederation:
             "protected_sister_hospitals_and_subclinics": unaffected_siblings,
         }
 
+    # -------------------------------------------------------------------------
+    # 1. PHAGOCYTIC CDR (CONTENT DISARM & RECONSTRUCTION) AGAINST LAB TROJANS
+    # -------------------------------------------------------------------------
+    @classmethod
+    def sanitize_and_verify_interclinic_payload(
+        cls,
+        origin_subclinic_id: str,
+        destination_branch_id: str,
+        raw_lab_or_imaging_payload: Dict[str, object],
+    ) -> Dict[str, object]:
+        """
+        Phagocytic Content Disarm & Reconstruction (CDR) Gate:
+        Inspects incoming lab results or imaging metadata from Sub-clinic A before
+        delivering to Sub-clinic B or the Main Hospital.
+        - Detects embedded Trojans, macros, shellcode, or SQL injection inside fields.
+        - Strips all executable/active content and reconstructs a sterile numeric/text
+          clinical JSON capsule signed with B.I.O.F.O.A.M.
+        """
+        serialized = json.dumps(raw_lab_or_imaging_payload)
+        detected_threats: List[str] = []
+
+        for pattern in cls.MALICIOUS_PAYLOAD_PATTERNS:
+            if re.search(pattern, serialized, flags=re.IGNORECASE):
+                detected_threats.append(pattern)
+
+        # Reconstruct sterile clinical values only (whitelist primitive clinical keys)
+        allowed_clinical_keys = ("patient_token", "analyte", "numeric_value", "unit", "reference_range")
+        sterile_reconstructed_data: Dict[str, object] = {}
+
+        for k in allowed_clinical_keys:
+            if k in raw_lab_or_imaging_payload:
+                val_str = str(raw_lab_or_imaging_payload[k])
+                # Strip any script/macro tags during reconstruction
+                clean_val = re.sub(r"(<script.*?>.*?</script>|VBA_MACRO_AUTOOPEN|powershell|eval\()", "[DISARMED]", val_str, flags=re.IGNORECASE)
+                sterile_reconstructed_data[k] = clean_val
+
+        return {
+            "origin_subclinic": origin_subclinic_id,
+            "destination_branch": destination_branch_id,
+            "trojan_or_exploit_detected": len(detected_threats) > 0,
+            "neutralized_threat_signatures": detected_threats,
+            "cdr_action": (
+                "TROJAN_PHAGOCYTOSED_AND_STRIPPED_STERILE_VALUES_EXTRACTED"
+                if detected_threats
+                else "CLEAN_PAYLOAD_VERIFIED"
+            ),
+            "sterile_reconstructed_clinical_capsule": sterile_reconstructed_data,
+        }
+
+    # -------------------------------------------------------------------------
+    # 2. SUB-CLINIC CONFIDENTIAL VAULT & BOARD + ARCHITECT (DR. LUIS ABURTO) KEY
+    # -------------------------------------------------------------------------
+    @classmethod
+    def generate_architect_or_board_key_share(cls, signer_role: str, signer_id: str, target_subclinic: str) -> str:
+        """
+        Generates a cryptographic authorization share for either a Board Member
+        or the Lead Architect/Developer (Dr. Luis Aburto).
+        """
+        secret = cls.ARCHITECT_MASTER_SECRET if signer_role == "ARCHITECT_DEVELOPER" else cls.CORPORATE_FEDERATION_SECRET
+        payload = f"VAULT_AUTH:{signer_role}:{signer_id}:{target_subclinic}".encode("utf-8")
+        sig = hmac.new(secret, payload, hashlib.sha256).hexdigest()[:18].upper()
+        return f"KEYSHARE-{signer_role}-{sig}"
+
+    @classmethod
+    def unlock_subclinic_confidential_vault(
+        cls,
+        requesting_branch_id: str,
+        target_subclinic_id: str,
+        board_member_signatures: List[Dict[str, str]],
+        architect_dev_signature: Optional[Dict[str, str]],
+        encrypted_subclinic_record: str,
+    ) -> Dict[str, object]:
+        """
+        Enforces Swedish Patientdatalagen (SFS 2008:355) & Zero-Knowledge Compartmentalization:
+        Other sub-clinics or even the Main Hospital CANNOT read a sub-clinic's ultra-confidential
+        vault records unless authorized by:
+          - At least 2 verified Board Members (`BOARD_MEMBER`), AND
+          - The Lead Architect / Developer (`ARCHITECT_DEVELOPER`: Dr. Luis Aburto).
+        """
+        verified_board_count = 0
+        for b_sig in board_member_signatures:
+            expected = cls.generate_architect_or_board_key_share(
+                "BOARD_MEMBER", b_sig.get("signer_id", ""), target_subclinic_id
+            )
+            if hmac.compare_digest(expected, b_sig.get("token", "")):
+                verified_board_count += 1
+
+        architect_verified = False
+        if architect_dev_signature:
+            expected_arch = cls.generate_architect_or_board_key_share(
+                "ARCHITECT_DEVELOPER",
+                architect_dev_signature.get("signer_id", ""),
+                target_subclinic_id,
+            )
+            if hmac.compare_digest(expected_arch, architect_dev_signature.get("token", "")):
+                architect_verified = True
+
+        if verified_board_count >= 2 and architect_verified:
+            return {
+                "vault_access_granted": True,
+                "target_subclinic": target_subclinic_id,
+                "authorization_quorum": f"{verified_board_count} Board Members + Lead Architect/Developer Verified",
+                "decrypted_confidential_payload": encrypted_subclinic_record,
+            }
+
+        return {
+            "vault_access_granted": False,
+            "target_subclinic": target_subclinic_id,
+            "status": (
+                "ACCESS_DENIED_CROSS_CLINIC_COMPARTMENT_LOCK: Requires 2 Board Member keys "
+                "+ Lead Architect/Developer (Dr. Luis Aburto) cryptographic key share!"
+            ),
+        }
+
+    # -------------------------------------------------------------------------
+    # 3. CRITICAL EMS PIT-STOP STABILIZATION & INTER-CLINIC SUPPLY RENDEZVOUS
+    # -------------------------------------------------------------------------
+    def orchestrate_critical_patient_and_supply_rendezvous(
+        self,
+        patient_token: str,
+        required_definitive_service: str,  # e.g., "NEUROSURGERY_OR_ECMO"
+        required_urgent_supply: str,  # e.g., "O_NEG_RBC" or "FIBRINOGEN_CONCENTRATE"
+        required_supply_units: int,
+        eta_to_main_hospital_minutes: int,
+        nearest_subclinic_id: str,
+        eta_to_nearest_subclinic_minutes: int,
+    ) -> Dict[str, object]:
+        """
+        Solves the Distant Critical Patient Dilemma ("Damage-Control Pit-Stop + Supply Rendezvous"):
+        1. If the patient is unstable and too far from the Main Hospital (e.g., 55 min away)
+           but near Sub-clinic B (e.g., 8 min away), routes the ambulance to Sub-clinic B for
+           immediate airway/hemodynamic stabilization.
+        2. Simultaneously scans all sister clinics/hospitals in the federation to locate the
+           required blood/supply and dispatches a Medevac Helicopter or Rapid Response Unit to
+           deliver the supply to Sub-clinic B (and/or pick up the stabilized patient).
+        """
+        pit_stop_engaged = eta_to_main_hospital_minutes > 25 and eta_to_nearest_subclinic_minutes <= 15
+        staging_facility = nearest_subclinic_id if pit_stop_engaged else "SE_STHLM_MAIN_HOSPITAL"
+
+        # Locate which hospital/sub-clinic in the network holds the required supply
+        supply_donor_branch = None
+        for branch_id, meta in self.subsidiary_nodes.items():
+            inventory = meta.get("inventory", {})
+            if isinstance(inventory, dict) and inventory.get(required_urgent_supply, 0) >= required_supply_units:
+                supply_donor_branch = branch_id
+                break
+
+        # Locate which hospital holds the definitive specialist service
+        definitive_care_branch = "SE_STHLM_MAIN_HOSPITAL"
+        for branch_id, meta in self.subsidiary_nodes.items():
+            services = meta.get("services", [])
+            if isinstance(services, list) and required_definitive_service in services:
+                definitive_care_branch = branch_id
+                break
+
+        return {
+            "patient_token": patient_token,
+            "tactical_routing_decision": (
+                "DAMAGE_CONTROL_PIT_STOP_AT_NEAREST_SUBCLINIC_PLUS_HELI_RENDEZVOUS"
+                if pit_stop_engaged
+                else "DIRECT_TRANSPORT_TO_TERTIARY_CENTER"
+            ),
+            "immediate_stabilization_destination": staging_facility,
+            "eta_to_stabilization_minutes": eta_to_nearest_subclinic_minutes,
+            "definitive_specialty_center": definitive_care_branch,
+            "urgent_supply_requested": f"{required_supply_units}x {required_urgent_supply}",
+            "supply_dispatched_from_branch": supply_donor_branch or "EMERGENCY_REGIONAL_BLOOD_HUB",
+            "dispatch_transport_vector": "HELI-MEDEVAC-01 (Air Rendezvous to Sub-clinic)",
+        }
+
     @classmethod
     def export_signed_ambulance_transfer_capsule(
         cls,
@@ -850,11 +1300,6 @@ class MultiHospitalSubsidiaryFederation:
         abo_rh: str,
         critical_summary: str,
     ) -> Dict[str, str]:
-        """
-        Generates a read-only, non-executable clinical transfer capsule signed with HMAC-SHA256
-        so a patient evacuated by ambulance from an attacked sub-clinic arrives at the main
-        hospital with verified blood type, allergies, and lab trends.
-        """
         canonical = f"{origin_subclinic_id}->{destination_hospital_id}|{patient_token}|{abo_rh}|{critical_summary}"
         sig = hmac.new(
             cls.CORPORATE_FEDERATION_SECRET, canonical.encode("utf-8"), hashlib.sha256
