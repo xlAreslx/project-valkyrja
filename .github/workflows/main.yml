@@ -1,0 +1,27 @@
+name: Project VALKYRJA — Automated Clinical & Crypto CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  verify-hexagonal-defenses:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: 2. Set up Python 3.12 Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 3. Run Unit Tests (Barium, 32-Byte RAM Key, Verbal TOTP & SQLite Bunker)
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: 4. Execute Full End-to-End NIS2 & Clinical Failover Simulation
+        run: python 5_valkyrja_dashboard_demo.py
